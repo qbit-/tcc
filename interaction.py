@@ -54,7 +54,7 @@ def _env_setup_test_interaction():
     # rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf() # -76.0267656731
     from tcc.rccsd import RCCSD
-    from tcc.cc import concreter
+    from tcc.cc_solvers import concreter
     CCc = concreter(RCCSD)
     CCobj = CCc(rhf)
     
@@ -76,8 +76,8 @@ class HAM_SPINLESS_FULL_CORE_MUL:
         nvir = self.mos.nvir
         
         if (cc._scf._eri is not None):
-            VFull = namedtuple('VFull', ('oooo', 'vooo', 'vvoo', 'vovo',
-                                 'voov', 'vvvo', 'vvvv'))
+            VFull = namedtuple('VFull', ('oooo', 'ooov', 'oovv', 'ovov',
+                                 'voov', 'ovvv', 'vvvv'))
             
             eri1 = ao2mo.incore.full(cc._scf._eri, self.mos.mo_coeff)
             nvir_pair = nvir * (nvir + 1) // 2
@@ -85,11 +85,11 @@ class HAM_SPINLESS_FULL_CORE_MUL:
             # Restore first compression over symmetric indices
             eri1 = ao2mo.restore(1, eri1, nmo)
             self.v = VFull(oooo=ref_ndarray(eri1[:nocc,:nocc,:nocc,:nocc]),
-                           vooo=ref_ndarray(eri1[nocc:,:nocc,:nocc,:nocc]),
-                           vvoo=ref_ndarray(eri1[nocc:,nocc:,:nocc,:nocc]),
-                           vovo=ref_ndarray(eri1[nocc:,:nocc,nocc:,:nocc]),
+                           ooov=ref_ndarray(eri1[:nocc,:nocc,:nocc,nocc:]),
+                           oovv=ref_ndarray(eri1[:nocc,:nocc,nocc:,nocc:]),
+                           ovov=ref_ndarray(eri1[:nocc,nocc:,:nocc,nocc:]),
                            voov=ref_ndarray(eri1[nocc:,:nocc,:nocc,nocc:]),
-                           vvvo=ref_ndarray(eri1[nocc:,nocc:,nocc:,:nocc]),
+                           ovvv=ref_ndarray(eri1[:nocc,nocc:,nocc:,nocc:]),
                            vvvv=ref_ndarray(eri1[nocc:,nocc:,nocc:,nocc:])
             )
         else:
@@ -119,26 +119,31 @@ class HAM_SPINLESS_FULL_CORE_DIR:
 
         if (cc._scf._eri is not None):
             VFull = namedtuple('VFull', ('oooo', 'ooov', 'oovv', 'ovov',
-                                         'voov', 'ovvv', 'vvvv'))
+                                         'voov', 'ovvv', 'vvvv', 'ovvo',
+                                         'vvov', 'vvoo', 'ovoo'))
             
             eri1 = ao2mo.incore.full(cc._scf._eri, self.mos.mo_coeff)
             nvir_pair = nvir * (nvir + 1) // 2
 
             # Restore first compression over symmetric indices
-            eri1 = ao2mo.restore(1, eri1, nmo)
-            self.v = VFull(oooo=mulliken_to_dirac(eri1[:nocc,:nocc,:nocc,:nocc]),
-                           ooov=mulliken_to_dirac(eri1[:nocc,:nocc,:nocc,nocc:]),
-                           oovv=mulliken_to_dirac(eri1[:nocc,nocc:,:nocc,nocc:]),
-                           ovov=mulliken_to_dirac(eri1[:nocc,:nocc,nocc:,nocc:]),
-                           voov=mulliken_to_dirac(eri1[nocc:,:nocc,:nocc,nocc:]),
-                           ovvv=mulliken_to_dirac(eri1[:nocc,nocc:,nocc:,nocc:]),
-                           vvvv=mulliken_to_dirac(eri1[nocc:,nocc:,nocc:,nocc:])
+            eri1 = mulliken_to_dirac(ao2mo.restore(1, eri1, nmo))
+            self.v = VFull(oooo=eri1[:nocc,:nocc,:nocc,:nocc],
+                           ooov=eri1[:nocc,:nocc,:nocc,nocc:],
+                           oovv=eri1[:nocc,:nocc,nocc:,nocc:],
+                           ovov=eri1[:nocc,nocc:,:nocc,nocc:],
+                           voov=eri1[nocc:,:nocc,:nocc,nocc:],
+                           ovvv=eri1[:nocc,nocc:,nocc:,nocc:],
+                           vvvv=eri1[nocc:,nocc:,nocc:,nocc:],
+                           ovvo=eri1[:nocc,nocc:,nocc:,:nocc],
+                           vvov=eri1[nocc:,nocc:,:nocc,nocc:],
+                           vvoo=eri1[nocc:,nocc:,:nocc,:nocc],
+                           ovoo=eri1[:nocc,nocc:,:nocc,:nocc]
             )
         else:
             raise ValueError('SCF object did not supply AO integrals')
         
         log.timer('CCSD integral transformation', *cput0)
-        
+
 class HAM_SPINLESS_RI_CORE:
     def __init__(self, cc, mos=None):
         cput0 = (time.clock(), time.time())
@@ -179,3 +184,49 @@ class HAM_SPINLESS_RI_CORE:
         log.timer('CCSD integral transformation', *cput0)
             
             
+class _HAM_SPINLESS_FULL_CORE_DIR_MATFILE:
+    """
+    Dirac ordered hamiltonian
+    """
+    def __init__(self, cc, filename='init_ints.mat'):
+        cput0 = (time.clock(), time.time())
+        log = logger.Logger(cc.stdout, cc.verbose)
+
+        # Add Fock matrix
+        self.f = _assemble_fock(cc, cc.mos)
+        
+        # Get sizes
+        self.mos = cc.mos
+        nocc = self.mos.nocc
+        nmo = self.mos.nmo
+        nvir = self.mos.nvir
+
+        def mulliken_to_dirac(a):
+            return a.transpose(0,2,1,3)
+
+        from scipy.io import loadmat
+        from os.path import isfile
+        
+        if (isfile(filename)):
+            VFull = namedtuple('VFull', ('oooo', 'ooov', 'oovv', 'ovov',
+                                         'voov', 'ovvv', 'vvvv'))
+            
+            eri1 = loadmat(filename, variable_names=('Imo'),
+                           matlab_compatible=True)['Imo']
+            
+            self.v = VFull(oooo=eri1[:nocc,:nocc,:nocc,:nocc],
+                           ooov=eri1[:nocc,:nocc,:nocc,nocc:],
+                           oovv=eri1[:nocc,:nocc,nocc:,nocc:],
+                           ovov=eri1[:nocc,nocc:,:nocc,nocc:],
+                           voov=eri1[nocc:,:nocc,:nocc,nocc:],
+                           ovvv=eri1[:nocc,nocc:,nocc:,nocc:],
+                           vvvv=eri1[nocc:,nocc:,nocc:,nocc:],
+                           ovvo=eri1[:nocc,nocc:,nocc:,:nocc],
+                           vvov=eri1[nocc:,nocc:,:nocc,nocc:],
+                           vvoo=eri1[nocc:,nocc:,:nocc,:nocc],
+                           ovoo=eri1[:nocc,nocc:,:nocc,:nocc]
+            )
+        else:
+            raise ValueError('File not found: {}'.format(filename))
+        
+        log.timer('CCSD integral transformation', *cput0)

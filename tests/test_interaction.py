@@ -1,6 +1,6 @@
 import unittest
-from tcc.cc import CC
-from tcc.cc import concreter
+from tcc.cc_solvers import CC
+from tcc.cc_solvers import concreter
 
 
 class TestCCAbstractClass(unittest.TestCase):

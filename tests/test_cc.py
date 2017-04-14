@@ -1,11 +1,8 @@
 import unittest
-from tcc.cc import CC
-from tcc.cc import concreter
-from tcc.cc import kernel
-from numpy import finfo
+import numpy as np
 
 
-class TestCCAbstractClass(unittest.TestCase):
+class TestCCSolversModule(unittest.TestCase):
 
     def setUp(self):
         from pyscf import gto
@@ -23,16 +20,26 @@ class TestCCAbstractClass(unittest.TestCase):
         mol.build(parse_arg=False)
         rhf = scf.RHF(mol)
         rhf.scf()  # -76.02676567
+        self.rhf = rhf
 
-        self.CC_dummy_class = concreter(CC)
-        self.CC_dummy = self.CC_dummy_class(rhf)
+    def test_residual_solver(self):
+        from tcc.cc_solvers import residual_diis_solver
+        from tcc.rccsd import RCCSD
 
-    def test_trivial_cc_calculation(self):
-        kernel(self.CC_dummy)
-        self.assertEqual(self.CC_dummy.energy_corr, 0)
-        self.assertEqual((self.CC_dummy.energy_tot -
-                          self.CC_dummy._scf.energy_tot()) < finfo(float).eps * 1000,
-                         True)
+        cc = RCCSD(self.rhf)
+        converged, energy, _ = residual_diis_solver(cc)
+        self.assertEqual(converged, True)
+        self.assertEqual(np.allclose(energy, -0.2133432609672395, 1e-5), True)
 
+    def test_classic_solver(self):
+        from tcc.cc_solvers import classic_solver
+        from tcc.rccsd import RCCSD
+
+        cc = RCCSD(self.rhf)
+        converged, energy, _ = classic_solver(cc)
+        self.assertEqual(converged, True)
+        self.assertEqual(np.allclose(energy, -0.2133432609672395, 1e-5), True)
+                     
+             
 if __name__ == '__main__':
     unittest.main()
