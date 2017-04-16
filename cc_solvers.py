@@ -3,6 +3,7 @@ import time
 from pyscf import lib
 from pyscf.lib import logger
 import numpy as np
+from scipy.optimize import fmin_l_bfgs_b
 
 def residual_diis_solver(cc, amps=None, max_cycle=50,
                          conv_tol_energy=1e-6, conv_tol_res=1e-5, lam=1, ndiis=5,
@@ -159,7 +160,59 @@ def damp_amplitudes(cc, amps, amps_old, lam):
     return cc.AMPLITUDES_TYPE(*(
         amps[ii] / lam + (lam - 1) / lam * amps_old[ii] for ii in range(len(amps))
     ))
-    
+
+def lagrange_min_solver(cc, eamps=None, max_cycle=50,
+                        conv_tol_lagr=1e-6, conv_tol_lagr_grad=1e-6,
+                        max_memory=None, verbose=logger.INFO):
+    """
+    This solves CC equations by minimizing CC lagrangian.
+    This is typically not needed for CC theories where R = 0, such as
+    normal CC.
+    cc method has to provide lagrangian evaluation method and
+    lagrangian derivatives.
+
+    :param cc: cc object
+    :param eamps:  Extended amplitudes: amplitudes + zeta initial quess.
+    :param max_cycle: number of cycles
+    :param conv_tol_lagr: convergence tolerance for lagrangian (aka energy)
+    :param conv_tol_lagr_grad: convergence tolerance for lagrangian gradient (aka amplitudes)
+    :param max_memory: maximal amount of memory to use
+    :param verbose: verbosity level
+    :rtype: converged, energy, extended amplitudes
+    """
+
+    if max_memory is None:
+        max_memory = cc.max_memory
+
+    log = logger.Logger(cc.stdout, verbose)
+
+    cput_cycle = cput_total = (time.clock(), time.time())
+
+    ham = cc.create_ham()
+
+    if eamps is None:
+        eamps = cc.init_extended_amps(ham)
+
+    energy = cc.calculate_extended_energy(ham, eamps)
+    cc._emp2 = energy
+
+    epsilon = np.finfo(np.dtype(float)).eps
+    eamps, lmin, info = fmin_l_bfgs_b(cc.calculate_lagrangian, eamps,
+                                     fprime=cc.lagrangian_gradient,
+                                     factr=conv_tol_lagr / epsilon,
+                                     pgtol=conv_tol_lagr_grad,
+                                     maxiter=max_cycle, callback=fmin_callback)
+
+    cc._converged = (info['warnflag'] == 0)
+    cc._energy_corr = cc.calculate_extended_energy(eamps)
+    cc._energy_tot = cc._scf.energy_tot() + energy
+
+    log.timer('CC done', *cput_total)
+
+    return cc._converged, energy, eamps
+    return
+
+
 def concreter(abclass):
     """
     >>> import abc
