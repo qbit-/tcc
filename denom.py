@@ -1,20 +1,22 @@
+from itertools import chain
 import numpy as np
 
 def cc_denom(fock, ndim, ordering='mul', kind='full'):
     """
     Builds a cc denominator. Kind may be either full or
     cpd.
+
     """
     e_i = fock.oo.diagonal()
     e_a = fock.vv.diagonal()
+    npair = ndim // 2
 
     if kind == 'full':
-        return _construct_cc_denom_full(e_a, e_i, ndim, ordering)
+        return 1 / _construct_cc_denom_full((e_a,)*npair + (e_i,)*npair, ordering)
     elif kind == 'cpd':
-        return _construct_cc_denom_cpd(e_a, e_i, ndim, ordering)
+        return _construct_cc_denom_cpd((e_a,)*npair + (e_i,)*npair, ordering)
 
-    
-def _construct_cc_denom_full(fv, fo, ndim, ordering):
+def _construct_cc_denom_full(fock_diags, ordering):
     """
     Builds an energy denominator
     from diagonals of occupied and virtual part of the
@@ -24,37 +26,48 @@ def _construct_cc_denom_full(fv, fo, ndim, ordering):
     ordering == 'mul'
     d_{aibj..} = (fv_a - fo_i + fv_b - fo_j + ..)
 
-    >>> import numpy as np
+    :param fock_diags:  an iterable of diagonal parts of Fock matrices
+    :param ordering: ordering of elements
+    :rtype: CC denominator tensor
+
     >>> a = np.array([1, 2])
     >>> b = np.array([3, 4])
-    >>> c = _construct_cc_denom_full(a, b, 4, 'mul')
-    >>> d = _construct_cc_denom_full(a, b, 4, 'dir')
+    >>> c = _construct_cc_denom_full((a,)*2 +(b,)*2, 'mul')
+    >>> d = _construct_cc_denom_full((a,)*2 +(b,)*2, 'dir')
     >>> np.allclose(c, d.transpose([0,2,1,3]))
     True
-    >>> c = _construct_cc_denom_full(a, b, 2, 'mul')
+    >>> c = _construct_cc_denom_full((a,) +(b,), 'mul')
     >>> c[1,0]
     -1
     """
+    ndim = len(fock_diags)
     if ndim % 2 != 0:
-        raise ValueError('Ndim is not an even integer: {}'.format(ndim))
+        raise ValueError(
+            'Odd number of vectors in fock_diags: {}'.format(ndim))
 
     npair = ndim // 2
 
     if ordering == 'dir':
-        vecs = [+fv.reshape(_get_expanded_shape_tuple(ii, ndim))
-                for ii in range(npair)]
-        vecs.extend([-fo.reshape(_get_expanded_shape_tuple(ii + npair, ndim))
-                     for ii in range(npair)])
-
-    elif ordering == 'mul':
-        vecs = (+fv.reshape(_get_expanded_shape_tuple(2 * ii, ndim))
-                - fo.reshape(_get_expanded_shape_tuple(2 * ii + 1, ndim))
+        vecs = tuple(
+            chain(
+            (+fock_diags[ii].reshape(_get_expanded_shape_tuple(ii, ndim))
+                for ii in range(npair)), 
+            (-fock_diags[ii+npair].reshape(_get_expanded_shape_tuple(ii + npair, ndim))
                 for ii in range(npair))
+            )
+        )
+    elif ordering == 'mul':
+        vecs = tuple(
+            chain.from_iterable(
+                (+fock_diags[ii].reshape(_get_expanded_shape_tuple(2 * ii, ndim)),
+                - fock_diags[ii+npair].reshape(_get_expanded_shape_tuple(2 * ii + 1, ndim))
+                )  for ii in range(npair))
+        )
     else:
         raise ValueError('Unknown ordering: {}'.format(ordering))
 
     return sum(vecs)
-
+    
 def _get_expanded_shape_tuple(dim, ndim):
     """
     Returns a tuple for reshaping a vector into
@@ -70,7 +83,7 @@ def _get_expanded_shape_tuple(dim, ndim):
         raise ValueError(
             'Invalid dimension: {}, not in 0..{}'.format(dim, ndim - 1))
 
-def _construct_cc_denom_cpd(fv, fo, ndim, ordering, epsilon=1e-10):
+def _construct_cc_denom_cpd(fock_diags, ordering, epsilon=1e-12):
     """
     Builds CC energy denominator in CPD forma
     from diagonals of occupied and virtual part of the
@@ -82,12 +95,37 @@ def _construct_cc_denom_cpd(fv, fo, ndim, ordering, epsilon=1e-10):
     ordering == 'mul'
     d_{aibj..} = (fv_a - fo_i + fv_b - fo_j + ..)
     sum_{p} dv_a^p * do_i^p * .. * dv_b^p * do_j^p * ..)  
+
+    :param fock_diags:  an iterable of diagonal parts of Fock matrices
+    :param ordering: ordering of elements
+    :param epsilon: accuracy of quadrature (default: 1e-10)
+    :rtype: tuple of CPD factors of CC denominator tensor
+
+    >>> from tcc.utils import cpd_rebuild
+    >>> a, b = np.array([3, 10]), np.array([-1, -2])
+    >>> f = (a,)*2 +(b,)*2
+    >>> c = _construct_cc_denom_full(f, 'mul')
+    >>> d = _construct_cc_denom_cpd(f, 'mul', 1e-14)
+    >>> np.allclose(1/c - cpd_rebuild(d), 1e-10)
+    True
     """
 
-    fvs = np.sort(fv)
-    fos = np.sort(fo)
-    A = fvs[0] - fos[-1]
-    B = fvs[-1] - fos[0]
+    ndim = len(fock_diags)
+    if ndim % 2 != 0:
+        raise ValueError(
+            'Odd number of vectors in fock_diags: {}'.format(ndim))
+
+    npair = ndim // 2
+
+    sorted_vecs = tuple(sorted(vec) for vec in fock_diags)
+        
+    # This check is not perfect, as accidential degeneracy may still happen?
+    min_spreads = [sorted_vecs[ii][0] - sorted_vecs[ii+npair][-1] for ii in
+                    range(npair)]
+    max_spreads = [sorted_vecs[ii][-1] - sorted_vecs[ii+npair][0] for ii in
+                    range(npair)]
+    A = min(min_spreads)
+    B = max(max_spreads)
 
     R = B / A
     # get quadrature coefficients and exponents
@@ -95,33 +133,53 @@ def _construct_cc_denom_cpd(fv, fo, ndim, ordering, epsilon=1e-10):
 
     # properly normalize for the size of tensors we have 
     cc = (c / A)**(1/ndim)
-    aa = a / A
-    wi = np.diagflat(cc) * np.exp(np.kron(-aa, -fo))
-    wa = np.diagflat(cc) * np.exp(np.kron(-aa, fv))
-    
-def _load_1_x_quadrature(R, epsilon, basepath=None):
+    aa = a.reshape(-1,1) / A
+
+    if ordering == 'dir':
+        vecs = tuple(
+            chain(
+                (np.diagflat(cc).dot(np.exp(np.kron(-aa, fock_diags[ii])))
+                 for ii in range(npair)),
+                (np.diagflat(cc).dot(np.exp(np.kron(-aa, -fock_diags[ii+npair])))
+                 for ii in range(npair))
+            )
+        )
+
+    elif ordering == 'mul':
+        vecs = tuple(
+            chain.from_iterable(
+                (np.diagflat(cc).dot(np.exp(np.kron(-aa, fock_diags[ii]))),
+                 np.diagflat(cc).dot(np.exp(np.kron(-aa, -fock_diags[ii+npair]))))
+                for ii in range(npair)
+            )
+        )
+    else:
+        raise ValueError('Unknown ordering: {}'.format(ordering))
+
+    return tuple(vec.transpose() for vec in vecs)
+
+def _load_1_x_quadrature(R, epsilon, prefix=None):
     """
     Loads appropriate quadrature parameters for 1/x function based on the
     value of range metric R and the required accuracy epsilon.
     :param R: range metric, as defined in :func:`_construct_cc_denom_cpd`
     :param epsilon: accuracy of the quadrature
-    :param basepath: path to directory containing index and quadratures
+    :param prefix: path to directory containing tcc package
     :rtype: quadrature coefficients, quadrature exponents (as np vectors)
     """
     import os
     import h5py
-    if basepath is None:
-        basepath = os.path.dirname(os.path.abspath(__file__)) + 'data/quadratures/1_x'
-
-    print(basepath)
+    if prefix is None:
+        prefix = os.path.dirname(os.path.abspath(__file__))
+    basepath = prefix + '/data/quadratures/1_x'
 
     f = h5py.File(basepath + '/quad_idx_table.h5', 'r')
     quad_file_name, num_k, max_err = _find_1_x_quadname(
         R, epsilon, f['quad_idx_table']
     )
     f.close()
-
     c, a = _read_quadrature_from_file(basepath + '/' + quad_file_name)
+
     return c, a
     
 def _read_quadrature_from_file(filename):
@@ -138,7 +196,7 @@ def _read_quadrature_from_file(filename):
     patt_alpha = b'([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\s*{alpha\[(\d+)'
 
     with open(filename, 'r') as fp:
-        data = mmap.mmap(fp.fileno(), 0)
+        data = mmap.mmap(fp.fileno(), 0, prot=mmap.PROT_READ)
         omega_indexed =  np.asarray(re.findall(patt_omega, data), dtype='float64')
         data.seek(0)
         alpha_indexed = np.asarray(re.findall(patt_alpha, data), dtype='float64')
@@ -160,7 +218,6 @@ def _find_1_x_quadname(R, epsilon, quad_idx_table):
     :param quad_idx_table: index table for available quadratures
     :rtype: quadrature file name, length of quadrature, maximal error 
     
-    >>> import numpy as np
     >>> import h5py, os
     >>> basepath = os.path.dirname(os.path.abspath(__file__))
     >>> f = h5py.File(basepath+'/data/quadratures/1_x/quad_idx_table.h5', 'r')
@@ -210,7 +267,6 @@ def _mantissa_exponent10(val):
     """
     Returns the mantissa and exponent of a real base 10 argument
 
-    >>> import numpy as np
     >>> _mantissa_exponent10(-0.1)
     (-1.0, -1.0)
     """

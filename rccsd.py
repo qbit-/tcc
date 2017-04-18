@@ -63,8 +63,8 @@ class RCCSD(CC):
         e_ai = cc_denom(ham.f, 2, 'dir', 'full')
         e_abij = cc_denom(ham.f, 4, 'dir', 'full')
 
-        t1 = ham.f.ov.transpose().conj() / (- e_ai)
-        t2 = ham.v.oovv.transpose([2, 3, 0, 1]).conj() / (- e_abij)
+        t1 = ham.f.ov.transpose().conj() * (- e_ai)
+        t2 = ham.v.oovv.transpose([2, 3, 0, 1]).conj() * (- e_abij)
 
         return self.AMPLITUDES_TYPE(t1, t2)
 
@@ -466,8 +466,8 @@ class RCCSD(CC):
         e_ai = cc_denom(h.f, 2, 'dir', 'full')
         e_abij = cc_denom(h.f, 4, 'dir', 'full')
 
-        g1 = g1 - a.t1 * e_ai
-        g2 = g2 - a.t2 * e_abij
+        g1 = g1 - a.t1 / e_ai
+        g2 = g2 - a.t2 / e_abij
         
         return self.RHS_TYPE(g1=g1, g2=g2)
 
@@ -479,7 +479,7 @@ class RCCSD(CC):
         """
 
         return self.AMPLITUDES_TYPE(
-            *(g[ii] / (- cc_denom(h.f, g[ii].ndim, 'dir', 'full'))
+            *(g[ii] * (- cc_denom(h.f, g[ii].ndim, 'dir', 'full'))
               for ii in range(len(g)))
         )
 
@@ -488,7 +488,7 @@ class RCCSD(CC):
         Calculates CC residuals from RHS and amplitudes
         """
         return self.RESIDUALS_TYPE(
-            *[a[ii] * cc_denom(h.f, a[ii].ndim, 'dir', 'full') + g[ii]
+            *[a[ii] / cc_denom(h.f, a[ii].ndim, 'dir', 'full') + g[ii]
               for ii in range(len(a))]
             )
 
@@ -961,8 +961,8 @@ class RCCSD_UNIT(RCCSD):
         e_ai = cc_denom(h.f, 2, 'dir', 'full')
         e_abij = cc_denom(h.f, 4, 'dir', 'full')
 
-        g1 = g1 - 2 * a.t1 * e_ai
-        g2 = g2 - (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])) * 2 * e_abij
+        g1 = g1 - a.t1 / 2 / e_ai
+        g2 = g2 - (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])) / 2 / e_abij
 
         return self.RHS_TYPE(g1=g1, g2=g2)
 
@@ -974,8 +974,8 @@ class RCCSD_UNIT(RCCSD):
         """
 
         return self.AMPLITUDES_TYPE(
-            t1=g.g1 / (- 2*cc_denom(h.f, 2, 'dir', 'full')),
-            t2=(2 * g.g2 + g.g2.transpose([0, 1, 3, 2])) / (- 6*cc_denom(h.f, 4, 'dir', 'full'))  
+            t1=g.g1 * (- 2*cc_denom(h.f, 2, 'dir', 'full')),
+            t2=(2 * g.g2 + g.g2.transpose([0, 1, 3, 2])) * (- 6*cc_denom(h.f, 4, 'dir', 'full'))  
         )
 
     
@@ -986,8 +986,8 @@ class RCCSD_UNIT(RCCSD):
         e_ai = cc_denom(ham.f, 2, 'dir', 'full')
         e_abij = cc_denom(ham.f, 4, 'dir', 'full')
 
-        t1 = ham.f.ov.transpose().conj() / (- e_ai)
-        t2 = ham.v.oovv.transpose([2, 3, 0, 1]).conj() / (- e_abij)
+        t1 = ham.f.ov.transpose().conj() * (- e_ai)
+        t2 = ham.v.oovv.transpose([2, 3, 0, 1]).conj() * (- e_abij)
 
         return self.AMPLITUDES_TYPE(t1, t2)
 
