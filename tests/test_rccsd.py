@@ -1,8 +1,7 @@
 import unittest
 import numpy as np
 
-
-class TestCCSolversModule(unittest.TestCase):
+class TestRCCSDModule(unittest.TestCase):
 
     def setUp(self):
         from pyscf import gto
@@ -23,14 +22,23 @@ class TestCCSolversModule(unittest.TestCase):
         self.rhf = rhf
 
     def test_rccsd_unit(self):
-        from tcc.cc_solvers import classic_solver
+        from tcc.cc_solvers import classic_solver, residual_diis_solver
         from tcc.rccsd import RCCSD, RCCSD_UNIT
 
         cc1 = RCCSD(self.rhf)
         cc2 = RCCSD_UNIT(self.rhf)
         converged1, energy1, amps = classic_solver(cc1)
-        converged2, energy2, _ = classic_solver(cc2, amps=amps, conv_tol_energy=1e-10)
+        converged2, energy2, _ = classic_solver(cc2)
 
         self.assertEqual(converged1, converged2)
+
+        self.assertEqual(np.allclose(energy1, -0.2133432609672395, 1e-5), True)
+        self.assertEqual(np.allclose(energy1, energy2, 1e-5), True)
+        
+        converged1, energy1, _ = residual_diis_solver(cc1, amps=amps,
+                                                         conv_tol_energy=1e-10)
+        converged2, energy2, _ = residual_diis_solver(cc2, amps=amps,
+                                                conv_tol_energy=1e-10)
+        
         self.assertEqual(np.allclose(energy1, -0.2133432609672395, 1e-5), True)
         self.assertEqual(np.allclose(energy1, energy2, 1e-5), True)

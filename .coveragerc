@@ -1,7 +1,7 @@
 # .coveragerc to control coverage.py
 [report]
 exclude_lines =
-  pragma: no cover
+  pragma: nocover
 
 # Don't complain about missing debug-only code:
   def __unicode__
