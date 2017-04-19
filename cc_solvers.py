@@ -42,7 +42,7 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
         rhs = cc.update_rhs(ham, amps)
         new_amps = cc.solve_amps(ham, amps, rhs)
         if lam != 1:
-            new_amps = amp_amplitudes(cc, new_amps, amps, lam)
+            new_amps = damp_amplitudes(cc, new_amps, amps, lam)
             
         rhs = cc.update_rhs(ham, new_amps)
         res = cc.calc_residuals(ham, new_amps, rhs)

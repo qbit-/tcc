@@ -1,0 +1,10 @@
+This directory contains 3 subdirectories of
+numerical results for the approximation of
+different functions 
+
+1/x        directory 1_x
+1/sqrt(x)  directory 1_sqrtx
+sqrt(x)    directory sqrtx
+  
+by sums of exponentials. Results are summarised
+in each directory in the respective file 'tabelle'. 

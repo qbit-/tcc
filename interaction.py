@@ -70,7 +70,10 @@ class HAM_SPINLESS_FULL_CORE_MUL:
         self.f = _assemble_fock(cc, mos)
         
         # Get sizes
-        self.mos = cc.mos
+        if mos is None:
+            self.mos = cc.mos
+        else:
+            self.mos = mos
         nocc = self.mos.nocc
         nmo = self.mos.nmo
         nvir = self.mos.nvir
@@ -109,7 +112,10 @@ class HAM_SPINLESS_FULL_CORE_DIR:
         self.f = _assemble_fock(cc, mos)
         
         # Get sizes
-        self.mos = cc.mos
+        if mos is None:
+            self.mos = cc.mos
+        else:
+            self.mos = mos
         nocc = self.mos.nocc
         nmo = self.mos.nmo
         nvir = self.mos.nvir
@@ -153,7 +159,10 @@ class HAM_SPINLESS_RI_CORE:
         self.f = _assemble_fock(cc, mos)
 
         # Get sizes
-        self.mos = cc.mos
+        if mos is None:
+            self.mos = cc.mos
+        else:
+            self.mos = mos
         nocc = self.mos.nocc
         nmo = self.mos.nmo
         nvir = self.mos.nvir
@@ -192,21 +201,25 @@ class _HAM_SPINLESS_FULL_CORE_DIR_MATFILE:
         cput0 = (time.clock(), time.time())
         log = logger.Logger(cc.stdout, cc.verbose)
 
-        # Add Fock matrix
-        self.f = _assemble_fock(cc, cc.mos)
-        
         # Get sizes
         self.mos = cc.mos
         nocc = self.mos.nocc
         nmo = self.mos.nmo
         nvir = self.mos.nvir
 
-        def mulliken_to_dirac(a):
-            return a.transpose(0,2,1,3)
-
         from scipy.io import loadmat
         from os.path import isfile
         
+        # Add Fock matrix
+        if (isfile(filename)):
+            FockMatrix = namedtuple('FockMatrix', ('oo', 'ov', 'vv'))
+            fock = loadmat(filename, variable_names=('Fmo'),
+                           matlab_compatible=True)['Fmo']
+            self.f = FockMatrix(oo=fock[:nocc,:nocc],
+                                ov=fock[:nocc,nocc:],
+                                vv=fock[nocc:,nocc:]
+            )
+
         if (isfile(filename)):
             VFull = namedtuple('VFull', ('oooo', 'ooov', 'oovv', 'ovov',
                                          'voov', 'ovvv', 'vvvv'))

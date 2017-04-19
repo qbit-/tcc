@@ -108,6 +108,9 @@ def _construct_cc_denom_cpd(fock_diags, ordering, epsilon=1e-12):
     >>> d = _construct_cc_denom_cpd(f, 'mul', 1e-14)
     >>> np.allclose(1/c - cpd_rebuild(d), 1e-10)
     True
+    >>> e = _construct_cc_denom_cpd(f, 'dir', 1e-14)
+    >>> np.allclose(cpd_rebuild(d) - cpd_rebuild((e[0],e[2],e[1],e[3])), 1e-10)
+    True
     """
 
     ndim = len(fock_diags)
@@ -241,7 +244,7 @@ def _find_1_x_quadname(R, epsilon, quad_idx_table):
     row, col = np.nonzero(err_table)
 
     if len(row) == 0 and len(col) == 0:
-        raise LookupError('Quadrature not found')
+        raise ValueError('Quadrature not found')
 
     k_min_col = np.min(col)
     k_min = k_min_col + 1 # Since python indexing is 0-based, and k is at least 1
@@ -269,6 +272,8 @@ def _mantissa_exponent10(val):
 
     >>> _mantissa_exponent10(-0.1)
     (-1.0, -1.0)
+    >>> _mantissa_exponent10(1.)
+    (1.0, 0.0)
     """
     sgn = np.sign(val)
     exponent = np.asscalar(np.fix(np.log10(abs(val))))

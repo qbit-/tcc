@@ -497,6 +497,10 @@ class RCCSD_UNIT(RCCSD):
     """
     RCCSD equations based entirely on the unitary group operators
     """
+    @property
+    def method_name(self):
+        return 'RCCSD_UNIT'
+
     def calculate_energy(self, h, a):
         """
         Calculate RCCSD energy
