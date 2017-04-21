@@ -4,6 +4,8 @@ from pyscf import lib
 from pyscf.lib import logger
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
+from tcc.diis import diis_single
+
 
 def residual_diis_solver(cc, amps=None, max_cycle=50,
                          conv_tol_energy=1e-6, conv_tol_res=1e-5, lam=1, ndiis=5,
@@ -29,21 +31,28 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
     cput_cycle = cput_total = (time.clock(), time.time())
 
+    diis = diis_single(ndiis)
+
     ham = cc.create_ham()
 
     if amps is None:
         amps = cc.init_amplitudes(ham)
 
+    diis.push_variable(amps[1])
+
     energy = cc.calculate_energy(ham, amps)
     cc._emp2 = energy
 
     for istep in range(max_cycle):
-        # here can be diis for amps
+        if diis.ready:
+            amps = diis.predict()
+        else:
+
         rhs = cc.update_rhs(ham, amps)
         new_amps = cc.solve_amps(ham, amps, rhs)
         if lam != 1:
             new_amps = damp_amplitudes(cc, new_amps, amps, lam)
-            
+
         rhs = cc.update_rhs(ham, new_amps)
         res = cc.calc_residuals(ham, new_amps, rhs)
 
@@ -61,7 +70,7 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val in zip(res._fields, norm_res)))
-        
+
         if abs(new_energy - energy) < conv_tol_energy:
             cc._converged = True
             break
@@ -79,12 +88,13 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
     return cc._converged, energy, amps
 
+
 def classic_solver(cc, amps=None, max_cycle=50,
                    conv_tol_energy=1e-6, conv_tol_amps=1e-5, lam=1,
                    max_memory=None, verbose=logger.INFO):
     """
     Carry on a CC calculation
-    
+
     :param cc: cc object
     :param amps:  amplitudes container
     :param max_cycle: number of cycles
@@ -115,7 +125,7 @@ def classic_solver(cc, amps=None, max_cycle=50,
         new_amps = cc.solve_amps(ham, amps, rhs)
         if lam != 1:
             new_amps = damp_amplitudes(cc, new_amps, amps, lam)
-        
+
         new_energy = cc.calculate_energy(ham, new_amps)
 
         norm_diff_amps = [np.linalg.norm(new_amps[ii] - amps[ii])
@@ -129,7 +139,7 @@ def classic_solver(cc, amps=None, max_cycle=50,
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val in zip(amps._fields, norm_diff_amps)))
-        
+
         if abs(new_energy - energy) < conv_tol_energy:
             cc._converged = True
             break
@@ -147,6 +157,7 @@ def classic_solver(cc, amps=None, max_cycle=50,
 
     return cc._converged, energy, amps
 
+
 def damp_amplitudes(cc, amps, amps_old, lam):
     """
     Calculates amplitudes damped with factor lam, as
@@ -160,6 +171,7 @@ def damp_amplitudes(cc, amps, amps_old, lam):
     return cc.AMPLITUDES_TYPE(*(
         amps[ii] / lam + (lam - 1) / lam * amps_old[ii] for ii in range(len(amps))
     ))
+
 
 def lagrange_min_solver(cc, eamps=None, max_cycle=50,
                         conv_tol_lagr=1e-6, conv_tol_lagr_grad=1e-6,
@@ -198,10 +210,10 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
 
     epsilon = np.finfo(np.dtype(float)).eps
     eamps, lmin, info = fmin_l_bfgs_b(cc.calculate_lagrangian, eamps,
-                                     fprime=cc.lagrangian_gradient,
-                                     factr=conv_tol_lagr / epsilon,
-                                     pgtol=conv_tol_lagr_grad,
-                                     maxiter=max_cycle, callback=fmin_callback)
+                                      fprime=cc.lagrangian_gradient,
+                                      factr=conv_tol_lagr / epsilon,
+                                      pgtol=conv_tol_lagr_grad,
+                                      maxiter=max_cycle, callback=fmin_callback)
 
     cc._converged = (info['warnflag'] == 0)
     cc._energy_corr = cc.calculate_extended_energy(eamps)
