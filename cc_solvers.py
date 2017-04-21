@@ -4,7 +4,7 @@ from pyscf import lib
 from pyscf.lib import logger
 import numpy as np
 from scipy.optimize import fmin_l_bfgs_b
-from tcc.diis import diis_single
+from tcc.diis import diis_multiple
 
 
 def residual_diis_solver(cc, amps=None, max_cycle=50,
@@ -31,14 +31,13 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
     cput_cycle = cput_total = (time.clock(), time.time())
 
-    diis = diis_single(ndiis)
-
     ham = cc.create_ham()
 
     if amps is None:
         amps = cc.init_amplitudes(ham)
 
-    diis.push_variable(amps[1])
+    diis = diis_multiple(len(amps), ndiis)
+    diis.push_variable(amps)
 
     energy = cc.calculate_energy(ham, amps)
     cc._emp2 = energy

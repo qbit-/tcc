@@ -162,3 +162,80 @@ class diis_single:
         :param variable: new variable
         """
         self._variables.append(variable)
+
+class diis_multiple(diis_single):
+    """
+    This class implements diis for multiple variables.
+    Each variable gets it's own coefficients from
+    it's own predictors
+    """
+    def __init__(self, nvar, ndiis, dtype='real'):
+        """
+        Constructs multiple DIIS instances
+        """
+        self.v = []
+        self._nvar = nvar
+        for ii in range(nvar):
+            self.v.extend(diis_single(ndiis, dtype))
+
+    @property
+    def ready(self):
+        """
+        Returns true is DIIS is ready to predict next approximate        
+        """
+
+        return all(self.v[ii].ready() for ii in range(self._nvar))
+
+    @property
+    def predictors(self):
+        """
+        Returns an iterator for current predictors
+        """
+        return (self.v[ii].predictors() for ii in range(self._nvar))
+
+    def selected_predictors(self, select):
+        """
+        Returns predictors for a selected variable
+        """
+        return self.v[selected].predictors()
+
+    def push_predictor(self, predictors):
+        """
+        Pushes predictors into deques
+        """
+        self._check_argument(predictors)
+        
+        for ii, pred in enumerate(predictors):
+            self.v[ii].push_predictor(pred)
+
+    def push_variable(self, variables):
+        """
+        Pushes variables into their deques
+        """
+        self._check_argument(variables)
+        
+        for ii, var in enumerate(variables):
+            self.v[ii].push_variable(var)
+
+    def _check_argument(self, x):
+        """
+        Simply checks the length of the supplied argumet
+        """
+        if len(x) != len(self.v):
+            raise ValueError('The length of the argumet\
+            does not match the diis: {} != {}'.format(len(x), len(self.v)))
+
+    def predict(self):
+        """
+        Predict next set of variables. Returns a generator
+        """
+        
+        for ii in range(self._nvar):
+            yield self.v[ii].predict()
+
+            
+    @property
+    def _update_coefftable(self):
+        raise AttributeError( "'diis_multiple' object has no attribute '_update_coefftable'" )
+
+    
