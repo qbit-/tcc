@@ -43,17 +43,15 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
     cc._emp2 = energy
 
     for istep in range(max_cycle):
-        if diis.ready:
-            amps = diis.predict()
-        else:
-
         rhs = cc.update_rhs(ham, amps)
+
         new_amps = cc.solve_amps(ham, amps, rhs)
         if lam != 1:
             new_amps = damp_amplitudes(cc, new_amps, amps, lam)
 
         rhs = cc.update_rhs(ham, new_amps)
         res = cc.calc_residuals(ham, new_amps, rhs)
+        diis.push_predictor(res)
 
         norm_res = np.array([
             np.linalg.norm(res[ii]) for ii in range(len(res))
@@ -77,8 +75,13 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
             cc._converged = True
             break
 
+        if diis.ready and abs(new_energy - energy) < diis_energy_tol:
+            amps = cc.AMPLITUDES_TYPE(*diis.predict())
+        else:
+            amps = new_amps
+        diis.push_variable(amps)
+
         energy = new_energy
-        amps = new_amps
 
     cc._energy_corr = energy
     cc._energy_tot = cc._scf.energy_tot() + energy

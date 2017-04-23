@@ -1,7 +1,7 @@
 import numpy as np
 from collections import deque
 from functools import reduce
-
+import pdb
 """
   Forms the DIIS guess for T, which we insert to calculate G.
   Remember that DIIS writes
@@ -73,6 +73,7 @@ class diis_single:
             self._dtype = dtype
         else:
             raise ValueError('Unsupported dtype: {}'.format(dtype))
+        self._initialized = False
 
     @property
     def ready(self):
@@ -84,7 +85,6 @@ class diis_single:
         else:
             return False
 
-    @property
     def predictors(self):
         """
         Returns current predictors
@@ -92,7 +92,6 @@ class diis_single:
         """
         return self._predictors
 
-    @property
     def variables(self):
         """
         Returns current (already predicted) variables
@@ -107,24 +106,43 @@ class diis_single:
         """
 
         self._predictors.append(predictor)
-        if self.ready():
+
+        if self._initialized:
             self._update_coefftable(predictor)
+        elif self.ready:
+            self._build_coefftable()
 
     def _update_coefftable(self, predictor):
         """
         Updates the coefficient table
         """
         # calculate new row/column of the symmetric coefftable
-        overlaps = [np.inner(vec.flatten(),
-                             predictor.flatten())
-                    for vec in self._predictors]
+        overlaps = np.array([np.inner(vec.flatten(),
+                                      predictor.flatten())
+                             for vec in self._predictors])
 
         # append last column/row to coefftable and drop the first row/col
-        coefftable = np.hstack(self._coefftable[1:, 1:],
-                               np.reshape(np.array(overlaps)[:, -1], (-1, 1))
-                               )
+        coefftable = np.vstack(
+            (np.hstack((self._coefftable[1:, 1:],
+                        np.reshape(overlaps[:-1], (-1, 1)))
+                       ),
+             overlaps)
+        )
 
-        self._coefftable = np.vstack(coefftable, np.array(overlaps))
+        self._coefftable = coefftable
+
+    def _build_coefftable(self):
+        """
+        Builds the coefficient table for the first time
+        """
+        n = self._ndiis
+        coefftable = np.zeros((n, n))
+        for ii in range(n):
+            for jj in range(n):
+                coefftable[ii, jj] = np.inner(self._predictors[ii].flatten(),
+                                              self._predictors[jj].flatten())
+        self._coefftable = coefftable
+        self._initialized = True
 
     def predict(self):
         """
@@ -138,15 +156,15 @@ class diis_single:
                          [np.zeros((n, n)), self._coefftable.T.conj(),
                           np.ones((n, 1)), 1j * np.ones((n, 1))],
                          [np.ones((1, n)), np.ones((1, n)),
-                          np.zeros(1), np.zeros(1)],
+                          np.zeros((1, 1)), np.zeros((1, 1))],
                          [np.ones((1, n)), -1j * np.ones((1, n)),
-                          np.zeros(1), np.zeros(1)]])
-            b = np.zeros(2 * n + 1, 1)
+                          np.zeros((1, 1)), np.zeros((1, 1))]])
+            b = np.zeros((2 * n + 1, 1))
             b[-2] = 2
         elif self._dtype == 'real':
             A = np.bmat([[self._coefftable, np.ones((n, 1))],
-                         [np.ones((1, n)), np.zeros(1)]])
-            b = np.zeros(n, 1)
+                         [np.ones((1, n)), np.zeros((1, 1))]])
+            b = np.zeros((n + 1, 1))
             b[-1] = 1
 
         x = np.linalg.solve(A, b)
@@ -163,12 +181,14 @@ class diis_single:
         """
         self._variables.append(variable)
 
+
 class diis_multiple(diis_single):
     """
     This class implements diis for multiple variables.
     Each variable gets it's own coefficients from
     it's own predictors
     """
+
     def __init__(self, nvar, ndiis, dtype='real'):
         """
         Constructs multiple DIIS instances
@@ -176,7 +196,7 @@ class diis_multiple(diis_single):
         self.v = []
         self._nvar = nvar
         for ii in range(nvar):
-            self.v.extend(diis_single(ndiis, dtype))
+            self.v.extend([diis_single(ndiis, dtype), ])
 
     @property
     def ready(self):
@@ -184,27 +204,39 @@ class diis_multiple(diis_single):
         Returns true is DIIS is ready to predict next approximate        
         """
 
-        return all(self.v[ii].ready() for ii in range(self._nvar))
+        return all(self.v[ii].ready for ii in range(self._nvar))
 
-    @property
     def predictors(self):
         """
         Returns an iterator for current predictors
         """
-        return (self.v[ii].predictors() for ii in range(self._nvar))
+        return tuple(self.v[ii].predictors() for ii in range(self._nvar))
 
     def selected_predictors(self, select):
         """
         Returns predictors for a selected variable
         """
-        return self.v[selected].predictors()
+        return self.v[select].predictors()
+
+    def variables(self):
+        """
+        Returns current (already predicted) variables
+        :rtype:
+        """
+        return tuple(self.v[ii].variables() for ii in range(self._nvar))
+
+    def selected_variables(self, select):
+        """
+        Returns predictors for a selected variable
+        """
+        return self.v[select].variables()
 
     def push_predictor(self, predictors):
         """
         Pushes predictors into deques
         """
         self._check_argument(predictors)
-        
+
         for ii, pred in enumerate(predictors):
             self.v[ii].push_predictor(pred)
 
@@ -213,7 +245,7 @@ class diis_multiple(diis_single):
         Pushes variables into their deques
         """
         self._check_argument(variables)
-        
+
         for ii, var in enumerate(variables):
             self.v[ii].push_variable(var)
 
@@ -229,13 +261,9 @@ class diis_multiple(diis_single):
         """
         Predict next set of variables. Returns a generator
         """
-        
-        for ii in range(self._nvar):
-            yield self.v[ii].predict()
+        return tuple(self.v[ii].predict() for ii in range(self._nvar))
 
-            
     @property
     def _update_coefftable(self):
-        raise AttributeError( "'diis_multiple' object has no attribute '_update_coefftable'" )
-
-    
+        raise AttributeError(
+            "'diis_multiple' object has no attribute '_update_coefftable'")
