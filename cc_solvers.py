@@ -37,23 +37,22 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
         amps = cc.init_amplitudes(ham)
 
     diis = diis_multiple(len(amps), ndiis)
-    diis.push_variable(amps)
-    old_amps = amps
 
     energy = cc.calculate_energy(ham, amps)
     cc._emp2 = energy
+    old_amps = amps
     old_energy = energy
 
     for istep in range(max_cycle):
+
         if diis.ready:
             amps = cc.AMPLITUDES_TYPE(*diis.predict())
-        else:
-            amps = old_amps
 
         rhs = cc.update_rhs(ham, amps)
         amps = cc.solve_amps(ham, amps, rhs)
         if lam != 1:
             amps = damp_amplitudes(cc, amps, old_amps, lam)
+        diis.push_variable(amps)
 
         rhs = cc.update_rhs(ham, amps)
         res = cc.calc_residuals(ham, amps, rhs)
@@ -80,10 +79,9 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
         if np.max(np.abs(norm_res)) < conv_tol_res:
             cc._converged = True
             break
-        diis.push_variable(amps)
         old_amps = amps
         old_energy = energy
-        
+
     cc._energy_corr = energy
     cc._energy_tot = cc._scf.energy_tot() + energy
     cc._amps = amps
