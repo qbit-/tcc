@@ -38,51 +38,52 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
     diis = diis_multiple(len(amps), ndiis)
     diis.push_variable(amps)
+    old_amps = amps
 
     energy = cc.calculate_energy(ham, amps)
     cc._emp2 = energy
+    old_energy = energy
 
     for istep in range(max_cycle):
+        if diis.ready:
+            amps = cc.AMPLITUDES_TYPE(*diis.predict())
+        else:
+            amps = old_amps
+
         rhs = cc.update_rhs(ham, amps)
-
-        new_amps = cc.solve_amps(ham, amps, rhs)
+        amps = cc.solve_amps(ham, amps, rhs)
         if lam != 1:
-            new_amps = damp_amplitudes(cc, new_amps, amps, lam)
+            amps = damp_amplitudes(cc, amps, old_amps, lam)
 
-        rhs = cc.update_rhs(ham, new_amps)
-        res = cc.calc_residuals(ham, new_amps, rhs)
+        rhs = cc.update_rhs(ham, amps)
+        res = cc.calc_residuals(ham, amps, rhs)
         diis.push_predictor(res)
 
         norm_res = np.array([
             np.linalg.norm(res[ii]) for ii in range(len(res))
         ])
 
-        new_energy = cc.calculate_energy(ham, new_amps)
+        energy = cc.calculate_energy(ham, amps)
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
         log.info('istep = %d  E(%s) = %.6e'
                  ' dE = %.6e  max(|r|) = %.6e',
                  istep, cc.method_name,
-                 new_energy, new_energy - energy, np.max(np.abs(norm_res)))
+                 energy, energy - old_energy, np.max(np.abs(norm_res)))
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val in zip(res._fields, norm_res)))
 
-        if abs(new_energy - energy) < conv_tol_energy:
+        if abs(energy - old_energy) < conv_tol_energy:
             cc._converged = True
             break
         if np.max(np.abs(norm_res)) < conv_tol_res:
             cc._converged = True
             break
-
-        if diis.ready and abs(new_energy - energy) < diis_energy_tol:
-            amps = cc.AMPLITUDES_TYPE(*diis.predict())
-        else:
-            amps = new_amps
         diis.push_variable(amps)
-
-        energy = new_energy
-
+        old_amps = amps
+        old_energy = energy
+        
     cc._energy_corr = energy
     cc._energy_tot = cc._scf.energy_tot() + energy
     cc._amps = amps

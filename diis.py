@@ -144,6 +144,7 @@ class diis_single:
         self._coefftable = coefftable
         self._initialized = True
 
+
     def predict(self):
         """
         Returns next extrapolated variable
@@ -169,7 +170,7 @@ class diis_single:
 
         x = np.linalg.solve(A, b)
         c = x[:n]
-
+        
         return reduce(lambda x, y: x + y, (c[ii] * self._variables[ii]
                                            for ii in range(n)))
 
@@ -267,3 +268,76 @@ class diis_multiple(diis_single):
     def _update_coefftable(self):
         raise AttributeError(
             "'diis_multiple' object has no attribute '_update_coefftable'")
+
+class diis_single_combined(diis_single):
+    """
+    This class does diis_single, but forms a single predictor out
+    of a tuple of predictors, and does the same for variables
+    """
+
+    def _update_coefftable(self, predictor):
+        """
+        Updates the coefficient table
+        """
+        p = np.hstack(pred.flatten() for pred in predictor)
+        # calculate new row/column of the symmetric coefftable
+        overlaps = np.array([np.inner(np.hstack(v.flatten() for v in vec),
+                                      p)
+                             for vec in self._predictors])
+
+        # append last column/row to coefftable and drop the first row/col
+        coefftable = np.vstack(
+            (np.hstack((self._coefftable[1:, 1:],
+                        np.reshape(overlaps[:-1], (-1, 1)))
+                       ),
+             overlaps)
+        )
+
+        self._coefftable = coefftable
+
+    def _build_coefftable(self):
+        """
+        Builds the coefficient table for the first time
+        """
+        n = self._ndiis
+        coefftable = np.zeros((n, n))
+        for ii in range(n):
+            for jj in range(n):
+                coefftable[ii, jj] = np.inner(np.hstack(v.flatten() for
+                                                        v in self._predictors[ii]),
+                                              np.hstack(w.flatten() for
+                                                        w in self._predictors[jj])
+                )
+        self._coefftable = coefftable
+        self._initialized = True
+
+    def predict(self):
+        """
+        Returns next extrapolated variable
+        :rtype: variable
+        """
+        n = self._ndiis
+        if self._dtype == 'complex':
+            A = np.bmat([[self._coefftable,
+                          np.zeros((n, n), np.ones(n, 1), -1j * np.ones(n, 1))],
+                         [np.zeros((n, n)), self._coefftable.T.conj(),
+                          np.ones((n, 1)), 1j * np.ones((n, 1))],
+                         [np.ones((1, n)), np.ones((1, n)),
+                          np.zeros((1, 1)), np.zeros((1, 1))],
+                         [np.ones((1, n)), -1j * np.ones((1, n)),
+                          np.zeros((1, 1)), np.zeros((1, 1))]])
+            b = np.zeros((2 * n + 1, 1))
+            b[-2] = 2
+        elif self._dtype == 'real':
+            A = np.bmat([[self._coefftable, np.ones((n, 1))],
+                         [np.ones((1, n)), np.zeros((1, 1))]])
+            b = np.zeros((n + 1, 1))
+            b[-1] = 1
+
+        x = np.linalg.solve(A, b)
+        c = x[:n]
+        
+        return tuple(
+            reduce(lambda x, y: x + y, (c[ii] * self._variables[ii][jj]
+                    for ii in range(n))) for jj in range(len(self._variables[0]))
+            )

@@ -1041,10 +1041,13 @@ def test_cc_unitary():   # pragma: nocover
     rhf.scf()  # -76.0267656731
 
     from tcc.cc_solvers import residual_diis_solver
+    from tcc.cc_solvers import classic_solver
     from tcc.rccsd import RCCSD_UNIT
     cc = RCCSD_UNIT(rhf)
     converged, energy, _ = residual_diis_solver(
-        cc, ndiis=5, conv_tol_energy=-1)
+        cc, ndiis=5, conv_tol_energy=-1, conv_tol_res=1e-10)
+    converged, energy, _ = classic_solver(
+        cc, conv_tol_energy=-1, conv_tol_amps=1e-10)
 
 if __name__ == '__main__':
     test_mp2_energy()

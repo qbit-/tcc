@@ -1204,8 +1204,8 @@ def test_cc():   # pragma: nocover
         [1, (0., -0.757, 0.587)],
         [1, (0., 0.757, 0.587)]]
 
-    mol.basis = {'H': 'sto-3g',
-                 'O': 'sto-3g', }
+    mol.basis = {'H': '6-31g',
+                 'O': '6-31g', }
     mol.build()
     rhf = scf.RHF(mol)
     # rhf = scf.density_fit(scf.RHF(mol))
