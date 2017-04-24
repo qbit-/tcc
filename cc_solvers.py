@@ -208,13 +208,38 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
 
     energy = cc.calculate_extended_energy(ham, eamps)
     cc._emp2 = energy
+    istep = 1
 
     epsilon = np.finfo(np.dtype(float)).eps
-    eamps, lmin, info = fmin_l_bfgs_b(cc.calculate_lagrangian, eamps,
-                                      fprime=cc.lagrangian_gradient,
+
+    def fmin_callback(eamps):
+        """
+        Callback function for printing during minimization
+        """
+        nonlocal istep
+        nonlocal energy
+        new_energy = cc.calculate_extended_energy(ham, eamps)
+        norm_amps = [np.linalg.norm(eamps[ii][jj])
+                     for ii in range(len(eamps)) for jj in range(len(eamps[ii]))]
+        log.info('istep = %d  E(%s) = %.6e'
+                 ' dE = %.6e  max(|T|) = %.6e',
+                 istep, cc.method_name,
+                 new_energy, new_energy - energy, np.max(np.abs(norm_amps)))
+        istep = istep + 1
+        energy = new_energy
+
+    def lagrangian(eamps):
+        return cc.calculate_lagrangian(ham, eamps)
+
+    def lagrangian_gradient(eamps):
+        return cc.lagrangian_gradient(ham, eamps)
+
+    eamps, lmin, info = fmin_l_bfgs_b(lagrangian, eamps,
+                                      fprime=lagrangian_gradient,
                                       factr=conv_tol_lagr / epsilon,
                                       pgtol=conv_tol_lagr_grad,
-                                      maxiter=max_cycle, callback=fmin_callback)
+                                      maxiter=max_cycle,
+                                      callback=fmin_callback)
 
     cc._converged = (info['warnflag'] == 0)
     cc._energy_corr = cc.calculate_extended_energy(eamps)

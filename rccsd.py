@@ -18,6 +18,8 @@ class RCCSD(CC):
                           field_names=('g1', 'g2'))
     RESIDUALS_TYPE = namedtuple('RCCSD_RESIDUALS_FULL',
                                 field_names=('r1', 'r2'))
+    EXTENDED_AMPLITUDES_TYPE = namedtuple('RCCSD_EXT_AMPLITUDES',
+                                          field_names=('t', 'z'))
 
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
                  mo_occ=None):
@@ -492,6 +494,26 @@ class RCCSD(CC):
             *[a[ii] / cc_denom(h.f, a[ii].ndim, 'dir', 'full') + g[ii]
               for ii in range(len(a))]
         )
+
+    def calculate_extended_energy(self, h, ea):
+        """
+        Calculates energy from extended amplitudes -
+        simply unwraps T
+        """
+
+        return self.calculate_energy(h, ea.t)
+
+    def calculate_lagrangian(self, h, ea):
+        """
+        Calculates CC Lagrangian
+        """
+        pass
+
+    def lagrangian_gradient(self, h, ea):
+        """
+        Calculates gradient of the CC Lagrangian
+        """
+        pass
 
 
 class RCCSD_UNIT(RCCSD):
