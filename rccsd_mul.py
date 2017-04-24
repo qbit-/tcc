@@ -733,7 +733,7 @@ class RCCSD_MUL(RCCSD):
         )
 
 
-class RCCSD_MUL_DF(RCCSD_MUL):
+class RCCSD_MUL_RI(RCCSD_MUL):
     """
     This implements RCCSD algorithm with Mulliken ordered
     amplitudes and density fitted integrals
@@ -741,7 +741,7 @@ class RCCSD_MUL_DF(RCCSD_MUL):
 
     @property
     def method_name(self):
-        return 'RCCSD_MUL_DF'
+        return 'RCCSD_MUL_RI'
 
     def create_ham(self):
         """
@@ -1405,6 +1405,25 @@ class RCCSD_MUL_DF(RCCSD_MUL):
         return self.RHS_TYPE(g1=g1, g2=g2)
 
 
+class RCCSD_MUL_RI_HUB(RCCSD_MUL_RI):
+    """
+    This class implements CCSD RI for Hubbard hamiltonian,
+    as it may be not easy to feed a decomposed hamiltonian to
+    pyscf directly
+    """
+
+    @property
+    def method_name(self):
+        return 'RCCSD_MUL_RI_HUB'
+
+    def create_ham(self):
+        """
+        Create full Hamiltonian (in core)
+        """
+        from tcc.interaction import HAM_SPINLESS_RI_CORE_HUBBARD
+        return HAM_SPINLESS_RI_CORE_HUBBARD(self)
+
+
 def test_mp2_energy():  # pragma: nocover
     from pyscf import gto
     from pyscf import scf
@@ -1420,7 +1439,7 @@ def test_mp2_energy():  # pragma: nocover
     rhf = scf.RHF(mol)
     rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()  # -76.0267656731
-    cc = RCCSD_MUL_DF(rhf)
+    cc = RCCSD_MUL_RI(rhf)
     h = cc.create_ham()
     a = cc.init_amplitudes(h)
     energy = cc.calculate_energy(h, a)
@@ -1444,10 +1463,27 @@ def test_cc():  # pragma: nocover
     rhf.scf()  # -76.0267656731
 
     from tcc.cc_solvers import classic_solver
-    from tcc.rccsd_mul import RCCSD_MUL_DF
-    cc = RCCSD_MUL_DF(rhf)
+    from tcc.rccsd_mul import RCCSD_MUL_RI
+    cc = RCCSD_MUL_RI(rhf)
     converged, energy, _ = classic_solver(cc)
+
+
+def test_cc_hubbard_ri():   # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    from tcc.hubbard import hubbard_from_scf
+    rhf = hubbard_from_scf(scf.RHF, 22, 22, 3, 'y')
+    rhf.damp = -4.0
+    rhf.scf()
+
+    from tcc.cc_solvers import residual_diis_solver
+    from tcc.rccsd_mul import RCCSD_MUL_RI_HUB
+    cc = RCCSD_MUL_RI_HUB(rhf)
+    converged, energy, _ = residual_diis_solver(
+        cc, ndiis=5, conv_tol_res=1e-6, lam=5,
+        max_cycle=100)
 
 if __name__ == '__main__':
     test_mp2_energy()
     test_cc()
+    test_cc_hubbard_ri()

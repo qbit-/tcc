@@ -8,7 +8,7 @@ from pyscf import gto
 from pyscf import ao2mo
 
 
-def hubbard_from_scf(scf_cls, nsites, nelec, u, pbc='y'):
+def hubbard_from_scf(scf_cls, nelec, nsites, u, pbc='y'):
     """
     Construct a Hubbard scf object from a given
     SCF class from pyscf
@@ -38,6 +38,7 @@ def hubbard_from_scf(scf_cls, nsites, nelec, u, pbc='y'):
     mf.get_hcore = lambda *args: h1
     mf.get_ovlp = lambda *args: np.eye(nsites)
     mf._eri = ao2mo.restore(8, eri, nsites)
+    mf._hubbard_interaction = u
 
     return mf
 

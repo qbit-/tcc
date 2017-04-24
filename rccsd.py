@@ -1074,17 +1074,18 @@ def test_cc_hubbard():   # pragma: nocover
     from pyscf import gto
     from pyscf import scf
     from tcc.hubbard import hubbard_from_scf
-    rhf = hubbard_from_scf(scf.RHF, 6, 6, 2, 'n')
-    rhf.damp = -1.0
+    rhf = hubbard_from_scf(scf.RHF, 22, 22, 3, 'y')
+    rhf.damp = -4.0
     rhf.scf()
 
     from tcc.cc_solvers import residual_diis_solver
-    from tcc.cc_solvers import classic_solver
     from tcc.rccsd import RCCSD_UNIT
     cc = RCCSD_UNIT(rhf)
     converged, energy, _ = residual_diis_solver(
-        cc, ndiis=5, conv_tol_energy=-1, conv_tol_res=1e-10)
+        cc, ndiis=5, conv_tol_res=1e-6, lam=5,
+        max_cycle=100)
 
 if __name__ == '__main__':
     test_mp2_energy()
     test_cc_unitary()
+    test_cc_hubbard()

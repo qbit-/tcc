@@ -1190,9 +1190,20 @@ class RCCSDT(RCCSD):
 
         g1 = g1 - a.t1 / e_ai
         g2 = g2 - a.t2 / e_abij
-        g3 = g3 - a.t3 / e_abcijk
+        g3 = g3 - (a.t3 - a.t3.transpose([2, 1, 0, 3, 4, 5])) / e_abcijk
 
         return self.RHS_TYPE(g1=g1, g2=g2, g3=g3)
+
+    def calc_residuals(self, h, a, g):
+        """
+        Calculates CC residuals from RHS and amplitudes
+        """
+        return self.RESIDUALS_TYPE(
+            r1=a.t1 / cc_denom(h.f, 2, 'dir', 'full') + g.g1,
+            r2=a.t2 / cc_denom(h.f, 4, 'dir', 'full') + g.g2,
+            r3=(a.t3 - a.t3.transpose([2, 1, 0, 3, 4, 5])) /
+            cc_denom(h.f, 6, 'dir', 'full') + g.g3
+        )
 
 
 def test_cc():   # pragma: nocover

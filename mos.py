@@ -11,10 +11,11 @@ class SPINLESS_MOS(object):
     Convenience class for molecular orbitals and
     their various blocks
 
-    Input:
-    mo_coeff    MO coefficients (rectangular numpy matrix)
-    mo_energy   HF energies of MO coefficients (1d array)
-    mo_occ      MO occupation numbers - (1d array)
+    :param mo_coeff: MO coefficients (rectangular numpy matrix)
+    :param mo_energy: HF energies of MO coefficients (1d array)
+    :param mo_occ: MO occupation numbers - (1d array)
+    :param frozen: frozen orbitals. If int, freeze # of frozen orbitals, if vector
+    of ints, freeze selected orbitals. Default None.
 
     >>> import numpy as np
     >>> m = SPINLESS_MOS(np.random.rand(4,3), np.ones(3), [2, 2, 0])

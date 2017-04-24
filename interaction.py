@@ -1,5 +1,5 @@
 import time
-import numpy
+import numpy as np
 import tempfile
 import h5py
 from functools import reduce
@@ -11,7 +11,7 @@ from collections import namedtuple
 
 
 def ref_ndarray(a):
-    return numpy.array(a, copy=False, order='C')
+    return np.array(a, copy=False, order='C')
 
 
 def _calculate_noncanonical_fock(scf, mo_coeff, mo_occ):
@@ -20,7 +20,7 @@ def _calculate_noncanonical_fock(scf, mo_coeff, mo_occ):
     """
     dm = scf.make_rdm1(mo_coeff, mo_occ)
     fockao = scf.get_hcore() + scf.get_veff(scf.mol, dm)
-    return reduce(numpy.dot, (mo_coeff.T, fockao, mo_coeff))
+    return reduce(np.dot, (mo_coeff.T, fockao, mo_coeff))
 
 
 def _assemble_fock(cc, mos=None):
@@ -28,7 +28,7 @@ def _assemble_fock(cc, mos=None):
     FockMatrix = namedtuple('FockMatrix', ('oo', 'ov', 'vv'))
     if mos is None:  # Assume canonical orbitals
         mos = cc.mos
-        fock = numpy.diag(cc.mos.mo_energies)
+        fock = np.diag(cc.mos.mo_energies)
     else:  # If mo_coeff is not canonical orbitals
         fock = _calculate_noncanonical_fock(cc._scf, mos.mo_coeff,
                                             mos.mo_occ)
@@ -50,9 +50,6 @@ class HAM_SPINLESS_FULL_CORE_MUL:
         cput0 = (time.clock(), time.time())
         log = logger.Logger(cc.stdout, cc.verbose)
 
-        # Add Fock matrix
-        self.f = _assemble_fock(cc, mos)
-
         # Get sizes
         if mos is None:
             self.mos = cc.mos
@@ -61,6 +58,9 @@ class HAM_SPINLESS_FULL_CORE_MUL:
         nocc = self.mos.nocc
         nmo = self.mos.nmo
         nvir = self.mos.nvir
+
+        # Add Fock matrix
+        self.f = _assemble_fock(cc, mos)
 
         if (cc._scf._eri is not None):
             VFull = namedtuple('VFull', ('oooo', 'ooov', 'oovv', 'ovov',
@@ -160,9 +160,9 @@ class HAM_SPINLESS_RI_CORE:
                 'VSymmetricRI', ('poo', 'pov', 'pvv', 'pvo'))
 
             naux = cc._scf.with_df.get_naoaux()
-            Lpnn = numpy.empty((naux, nmo, nmo))
+            Lpnn = np.empty((naux, nmo, nmo))
 
-            mof = numpy.asarray(self.mos.mo_coeff, order='F')
+            mof = np.asarray(self.mos.mo_coeff, order='F')
             ijslice = (0, nmo, 0, nmo)
             Lpq = None
             pq = 0
@@ -180,6 +180,61 @@ class HAM_SPINLESS_RI_CORE:
                                   )
         else:
             raise ValueError('SCF object did not supply DF AO integrals')
+
+        log.timer('CCSD integral transformation', *cput0)
+
+
+class HAM_SPINLESS_RI_CORE_HUBBARD:
+    """
+    Creates RI decomposed Hubbard hamiltonian,
+    as this is not easy to supply with PySCF
+    """
+
+    def __init__(self, cc, mos=None):
+        cput0 = (time.clock(), time.time())
+        log = logger.Logger(cc.stdout, cc.verbose)
+
+        # Get sizes
+        if mos is None:
+            self.mos = cc.mos
+        else:
+            self.mos = mos
+
+        nocc = self.mos.nocc
+        nmo = self.mos.nmo
+        nvir = self.mos.nvir
+
+        # Add Fock matrix
+        self.f = _assemble_fock(cc, mos)
+
+        # Build RI integrals analytically
+
+        from tcc.utils import khatrirao
+        from math import sqrt
+
+        if hasattr(cc._scf, '_hubbard_interaction'):
+            u = cc._scf._hubbard_interaction
+            if u < 0:
+                u12 = 1j * sqrt(-u)
+            else:
+                u12 = sqrt(u)
+
+                Lpnn = u12 * np.reshape(
+                    np.transpose(khatrirao(
+                        (np.conj((self.mos.mo_coeff).T),
+                         self.mos.mo_coeff.T)
+                    )), (nmo, nmo, nmo)
+                )
+
+                VSymmetricRI = namedtuple(
+                    'VSymmetricRI', ('poo', 'pov', 'pvv', 'pvo'))
+
+                self.l = VSymmetricRI(poo=ref_ndarray(Lpnn[:, :nocc, :nocc]),
+                                      pov=ref_ndarray(Lpnn[:, :nocc, nocc:]),
+                                      pvv=ref_ndarray(Lpnn[:, nocc:, nocc:]),
+                                      pvo=ref_ndarray(Lpnn[:, nocc:, :nocc]))
+        else:
+            raise ValueError('SCF object did not supply Hubbard interaction')
 
         log.timer('CCSD integral transformation', *cput0)
 
