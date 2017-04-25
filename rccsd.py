@@ -1085,6 +1085,22 @@ def test_cc_hubbard():   # pragma: nocover
         cc, ndiis=5, conv_tol_res=1e-6, lam=5,
         max_cycle=100)
 
+
+def test_cc_hubbard():   # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    from tcc.hubbard import hubbard_from_scf
+    rhf = hubbard_from_scf(scf.RHF, 22, 22, 3, 'y')
+    rhf.damp = -4.0
+    rhf.scf()
+
+    from tcc.cc_solvers import lagrange_min_solver
+    from tcc.rccsd import RCCSD
+    cc = RCCSD(rhf)
+    converged, energy, _ = lagrange_min_solver(
+        cc, ndiis=5, conv_tol_res=1e-6, lam=5,
+        max_cycle=100)
+
 if __name__ == '__main__':
     test_mp2_energy()
     test_cc_unitary()
