@@ -3,7 +3,7 @@ import time
 from pyscf import lib
 from pyscf.lib import logger
 import numpy as np
-from scipy.optimize import fmin_l_bfgs_b
+from scipy.optimize import minimize
 from tcc.diis import diis_multiple
 
 
@@ -46,7 +46,7 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
     for istep in range(max_cycle):
 
         if diis.ready:
-            amps = cc.AMPLITUDES_TYPE(*diis.predict())
+            amps = cc.types.AMPLITUDES_TYPE(*diis.predict())
 
         rhs = cc.update_rhs(ham, amps)
         amps = cc.solve_amps(ham, amps, rhs)
@@ -169,7 +169,7 @@ def damp_amplitudes(cc, amps, amps_old, lam):
     :param amps_old:  amplitudes container
     :rtype: amplitudes container
     """
-    return cc.AMPLITUDES_TYPE(*(
+    return cc.types.AMPLITUDES_TYPE(*(
         amps[ii] / lam + (lam - 1) / lam * amps_old[ii] for ii in range(len(amps))
     ))
 
@@ -193,6 +193,9 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
     :param verbose: verbosity level
     :rtype: converged, energy, extended amplitudes
     """
+    from tcc.utils import (merge_np_container,
+                           np_container_structure,
+                           unmerge_np_container)
 
     if max_memory is None:
         max_memory = cc.max_memory
@@ -212,12 +215,33 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
 
     epsilon = np.finfo(np.dtype(float)).eps
 
-    def fmin_callback(eamps):
+    eamps_structure = np_container_structure(eamps)
+
+    def lagrangian(x):
+        return cc.calculate_lagrangian(ham,
+                                       unmerge_np_container(
+                                           cc.types.EXTENDED_AMPLITUDES_TYPE,
+                                           eamps_structure, x)
+                                       )
+
+    def lagrangian_gradient(x):
+        return merge_np_container(
+            cc.lagrangian_gradient(ham,
+                                   unmerge_np_container(
+                                       cc.types.EXTENDED_AMPLITUDES_TYPE,
+                                       eamps_structure, x)
+                                   )
+        )
+
+    def fmin_callback(x):
         """
         Callback function for printing during minimization
         """
         nonlocal istep
         nonlocal energy
+        eamps = unmerge_np_container(
+            cc.types.AMPLITUDES_TYPE, eamps_structure, x)
+
         new_energy = cc.calculate_extended_energy(ham, eamps)
         norm_amps = [np.linalg.norm(eamps[ii][jj])
                      for ii in range(len(eamps)) for jj in range(len(eamps[ii]))]
@@ -228,19 +252,15 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
         istep = istep + 1
         energy = new_energy
 
-    def lagrangian(eamps):
-        return cc.calculate_lagrangian(ham, eamps)
+    eamps, lmin, info = minimize(lagrangian, merge_np_container(eamps),
+                                 method='Nelder-Mead',
+                                 options={'disp': True})
 
-    def lagrangian_gradient(eamps):
-        return cc.lagrangian_gradient(ham, eamps)
-
-    eamps, lmin, info = fmin_l_bfgs_b(lagrangian, eamps,
-                                      fprime=lagrangian_gradient,
-                                      factr=conv_tol_lagr / epsilon,
-                                      pgtol=conv_tol_lagr_grad,
-                                      maxiter=max_cycle,
-                                      callback=fmin_callback)
-
+    # factr=conv_tol_lagr / epsilon,
+    # pgtol=conv_tol_lagr_grad,
+    # maxiter=max_cycle,
+    # fprime=lagrangian_gradient,
+    # callback=fmin_callback,
     cc._converged = (info['warnflag'] == 0)
     cc._energy_corr = cc.calculate_extended_energy(eamps)
     cc._energy_tot = cc._scf.energy_tot() + energy
@@ -328,6 +348,12 @@ class CC(abc.ABC):
     def mos(self):
         """
         Returns a constructor for a MOS object
+        """
+
+    @abc.abstractproperty
+    def types(self):
+        """
+        Contains type definitions for parameters of the method
         """
 
     @abc.abstractproperty

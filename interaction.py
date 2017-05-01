@@ -112,11 +112,14 @@ class HAM_SPINLESS_FULL_CORE_DIR:
         if (cc._scf._eri is not None):
             VFull = namedtuple('VFull', ('oooo', 'ooov', 'oovv', 'ovov',
                                          'voov', 'ovvv', 'vvvv', 'ovvo',
-                                         'vvov', 'vvoo', 'ovoo'))
+                                         'vvov', 'vvoo', 'ovoo', 'oovo',
+                                         'vvvo'))
 
             eri1 = ao2mo.incore.full(cc._scf._eri, self.mos.mo_coeff)
             nvir_pair = nvir * (nvir + 1) // 2
 
+            # FIXME: need to clean up interaction to having only 7 partitions.
+            # FIXME: this will involve fixing rccsd.py
             # Restore first compression over symmetric indices
             eri1 = mulliken_to_dirac(ao2mo.restore(1, eri1, nmo))
             self.v = VFull(oooo=eri1[:nocc, :nocc, :nocc, :nocc],
@@ -129,7 +132,9 @@ class HAM_SPINLESS_FULL_CORE_DIR:
                            ovvo=eri1[:nocc, nocc:, nocc:, :nocc],
                            vvov=eri1[nocc:, nocc:, :nocc, nocc:],
                            vvoo=eri1[nocc:, nocc:, :nocc, :nocc],
-                           ovoo=eri1[:nocc, nocc:, :nocc, :nocc]
+                           ovoo=eri1[:nocc, nocc:, :nocc, :nocc],
+                           oovo=eri1[:nocc, :nocc, nocc:, :nocc],
+                           vvvo=eri1[nocc:, nocc:, nocc:, :nocc]
                            )
         else:
             raise ValueError('SCF object did not supply AO integrals')

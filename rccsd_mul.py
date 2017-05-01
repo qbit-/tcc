@@ -2,14 +2,56 @@ import numpy as np
 from numpy import einsum
 from tcc.denom import cc_denom
 from collections import namedtuple
-from tcc.rccsd import RCCSD
+from types import SimpleNamespace
+from tcc.cc_solvers import CC
 
 
-class RCCSD_MUL(RCCSD):
+class RCCSD_MUL(CC):
     """
     This implements RCCSD algorithm with Mulliken ordered
     amplitudes and integrals
     """
+    #  These are containers used by all  methods of this class
+    # to pass numpy arrays
+
+    types = SimpleNamespace()
+
+    def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
+                 mo_occ=None):
+        """
+        Initialize RCCSD
+        """
+        # Simply copy some parameters from RHF calculation
+        super().__init__(mf)
+
+        # Initialize molecular orbitals
+
+        if mo_energy is None:
+            mo_energy = mf.mo_energy
+        if mo_coeff is None:
+            mo_coeff = mf.mo_coeff
+        if mo_occ is None:
+            mo_occ = mf.mo_occ
+
+        from tcc.mos import SPINLESS_MOS
+        self._mos = SPINLESS_MOS(mo_coeff, mo_energy, mo_occ, frozen)
+
+        # Add some type definitions
+        self.types.AMPLITUDES_TYPE = namedtuple('RCCSD_AMPLITUDES_FULL',
+                                                field_names=('t1', 't2'))
+        self.types.RHS_TYPE = namedtuple('RCCSD_RHS_FULL',
+                                         field_names=('g1', 'g2'))
+        self.types.RESIDUALS_TYPE = namedtuple('RCCSD_RESIDUALS_FULL',
+                                               field_names=('r1', 'r2'))
+        self.types.EXTENDED_AMPLITUDES_TYPE = namedtuple(
+            'RCCSD_EXTENDED_AMPLITUDES', field_names=('t1', 'z1', 't2', 'z2'))
+
+    @property
+    def mos(self):
+        '''
+        MOs object
+        '''
+        return self._mos
 
     @property
     def method_name(self):
@@ -32,7 +74,7 @@ class RCCSD_MUL(RCCSD):
         t1 = ham.f.ov.transpose().conj() * (- e_ai)
         t2 = ham.v.ovov.transpose().conj() * (- e_aibj)
 
-        return self.AMPLITUDES_TYPE(t1, t2)
+        return self.types.AMPLITUDES_TYPE(t1, t2)
 
     def calculate_energy(self, h, a):
         """
@@ -709,7 +751,7 @@ class RCCSD_MUL(RCCSD):
         g1 = g1 - a.t1 / e_ai
         g2 = g2 - a.t2 / e_aibj
 
-        return self.RHS_TYPE(g1=g1, g2=g2)
+        return self.types.RHS_TYPE(g1=g1, g2=g2)
 
     def solve_amps(self, h, a, g):
         """
@@ -718,7 +760,7 @@ class RCCSD_MUL(RCCSD):
         is consistent with the order in amplitudes
         """
 
-        return self.AMPLITUDES_TYPE(
+        return self.types.AMPLITUDES_TYPE(
             *(g[ii] * (- cc_denom(h.f, g[ii].ndim, 'mul', 'full'))
               for ii in range(len(g)))
         )
@@ -727,7 +769,7 @@ class RCCSD_MUL(RCCSD):
         """
         Calculates CC residuals from RHS and amplitudes
         """
-        return self.RESIDUALS_TYPE(
+        return self.types.RESIDUALS_TYPE(
             *[a[ii] / cc_denom(h.f, a[ii].ndim, 'mul', 'full') + g[ii]
               for ii in range(len(a))]
         )
@@ -762,7 +804,7 @@ class RCCSD_MUL_RI(RCCSD_MUL):
         v_vovo = einsum("pia,pjb->aibj", ham.l.pov, ham.l.pov).conj()
         t2 = v_vovo * (- e_aibj)
 
-        return self.AMPLITUDES_TYPE(t1, t2)
+        return self.types.AMPLITUDES_TYPE(t1, t2)
 
     def calculate_energy(self, h, a):
         """
@@ -1402,7 +1444,7 @@ class RCCSD_MUL_RI(RCCSD_MUL):
         g1 = g1 - a.t1 / e_ai
         g2 = g2 - a.t2 / e_aibj
 
-        return self.RHS_TYPE(g1=g1, g2=g2)
+        return self.types.RHS_TYPE(g1=g1, g2=g2)
 
 
 class RCCSD_MUL_RI_HUB(RCCSD_MUL_RI):
