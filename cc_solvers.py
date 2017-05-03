@@ -185,7 +185,7 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
     lagrangian derivatives.
 
     :param cc: cc object
-    :param eamps:  Extended amplitudes: amplitudes + zeta initial quess.
+    :param eamps:  Extended amplitudes: amplitudes + zeta initial guess.
     :param max_cycle: number of cycles
     :param conv_tol_lagr: convergence tolerance for lagrangian (aka energy)
     :param conv_tol_lagr_grad: convergence tolerance for lagrangian gradient (aka amplitudes)
@@ -207,9 +207,9 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
     ham = cc.create_ham()
 
     if eamps is None:
-        eamps = cc.init_extended_amps(ham)
+        eamps = cc.init_amplitudes(ham)
 
-    energy = cc.calculate_extended_energy(ham, eamps)
+    energy = cc.calculate_energy(ham, eamps)
     cc._emp2 = energy
     istep = 1
 
@@ -220,7 +220,7 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
     def lagrangian(x):
         return cc.calculate_lagrangian(ham,
                                        unmerge_np_container(
-                                           cc.types.EXTENDED_AMPLITUDES_TYPE,
+                                           cc.types.AMPLITUDES_TYPE,
                                            eamps_structure, x)
                                        )
 
@@ -228,7 +228,7 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
         return merge_np_container(
             cc.lagrangian_gradient(ham,
                                    unmerge_np_container(
-                                       cc.types.EXTENDED_AMPLITUDES_TYPE,
+                                       cc.types.AMPLITUDES_TYPE,
                                        eamps_structure, x)
                                    )
         )
@@ -242,7 +242,7 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
         eamps = unmerge_np_container(
             cc.types.AMPLITUDES_TYPE, eamps_structure, x)
 
-        new_energy = cc.calculate_extended_energy(ham, eamps)
+        new_energy = cc.calculate_energy(ham, eamps)
         norm_amps = [np.linalg.norm(eamps[ii][jj])
                      for ii in range(len(eamps)) for jj in range(len(eamps[ii]))]
         log.info('istep = %d  E(%s) = %.6e'
@@ -252,9 +252,9 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
         istep = istep + 1
         energy = new_energy
 
-    eamps, lmin, info = minimize(lagrangian, merge_np_container(eamps),
-                                 method='Nelder-Mead',
-                                 options={'disp': True})
+    eamps, lmin, *info = minimize(lagrangian, merge_np_container(eamps),
+                                  method='Nelder-Mead',
+                                  options={'disp': True})
 
     # factr=conv_tol_lagr / epsilon,
     # pgtol=conv_tol_lagr_grad,
@@ -262,7 +262,7 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
     # fprime=lagrangian_gradient,
     # callback=fmin_callback,
     cc._converged = (info['warnflag'] == 0)
-    cc._energy_corr = cc.calculate_extended_energy(eamps)
+    cc._energy_corr = cc.calculate_energy(eamps)
     cc._energy_tot = cc._scf.energy_tot() + energy
 
     log.timer('CC done', *cput_total)
@@ -398,4 +398,102 @@ class CC(abc.ABC):
     def calc_residuals(self, ham, amps, rhs):
         """
         Calculates residuals of CC equations
+        """
+
+
+class CC_lagrangian(abc.ABC):
+    """
+    This is an abstract class implementing a CC calculation
+    by lagrangian minimization. 
+    Normally, subclasses need to override properties
+    :py:attr:`ham`  and methods :py:attr:`init_amps`,
+    :py:attr:`lagrangian`, :py:attr:`gradient`, :py:attr:`calculate_energy`
+    """
+
+    def __init__(self, mf):
+        """
+        Initialize CC by copying values from the HF calculation
+
+        Parameters
+        ----------
+
+        mf
+           SCF object containing previous SCF calculation
+        frozen
+           list of frozen orbitals
+        mo_energy
+           list of orbital energies (Fock eigenvalues)
+        mo_coeff
+           MO coefficients (Fock eigenvectors)
+        """
+
+        # The following should not be modified
+        self._mol = mf.mol
+        self._scf = mf
+        self._converged = False
+        self._energy_corr = None
+        self._energy_tot = None
+        self._amps = None
+        self._zeta = None
+
+        # Those are parameters to modify
+        self.verbose = self._mol.verbose
+        self.max_memory = mf.max_memory
+        self.stdout = self._mol.stdout
+
+    @property
+    def energy_corr(self):
+        return self._energy_corr
+
+    @property
+    def energy_tot(self):
+        return self._energy_tot
+
+    @abc.abstractproperty
+    def mos(self):
+        """
+        Returns a constructor for a MOS object
+        """
+
+    @abc.abstractproperty
+    def types(self):
+        """
+        Contains type definitions for parameters of the method
+        """
+
+    @abc.abstractproperty
+    def method_name(self):
+        """
+        Returns the name of a prticular method
+        """
+
+    @abc.abstractclassmethod
+    def create_ham(self):
+        """
+        One and two electron integrals in the MO basis along
+        with the transformation matrix
+        """
+
+    @abc.abstractclassmethod
+    def init_amplitudes(self, ham):
+        """
+        Initialize amplitudes
+        """
+
+    @abc.abstractclassmethod
+    def calculate_lagrangian(self, ham, amps):
+        """
+        Calculates CC lagrangian value with current amplitudes
+        """
+
+    @abc.abstractclassmethod
+    def lagrangian_gradient(self, ham, amps):
+        """
+        Calculate gradient of CC lagrangian
+        """
+
+    @abc.abstractclassmethod
+    def calculate_energy(self, ham, amps):
+        """
+        Calculate Coupled Cluster energy
         """
