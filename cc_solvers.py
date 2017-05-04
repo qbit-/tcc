@@ -3,7 +3,7 @@ import time
 from pyscf import lib
 from pyscf.lib import logger
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, root
 from tcc.diis import diis_multiple
 
 
@@ -174,6 +174,64 @@ def damp_amplitudes(cc, amps, amps_old, lam):
     ))
 
 
+def root_solver(cc, amps=None, max_cycle=100,
+                conv_tol_res=1e-5,
+                max_memory=None, verbose=logger.INFO):
+    """
+    Solves CC equations using root finding functions from scipy
+
+    :param cc: cc object
+    :param amps:  amplitudes container
+    :param max_cycle: number of cycles
+    :param conv_tol_res: convergence tolerance for residuals
+    :param max_memory: maximal amount of memory to use
+    :param verbose: verbosity level
+    :rtype: converged, energy, amplitudes
+    """
+    from tcc.utils import (merge_np_container,
+                           np_container_structure,
+                           unmerge_np_container)
+
+    if max_memory is None:
+        max_memory = cc.max_memory
+
+    log = logger.Logger(cc.stdout, verbose)
+
+    ham = cc.create_ham()
+
+    if amps is None:
+        amps = cc.init_amplitudes(ham)
+
+    energy = cc.calculate_energy(ham, amps)
+    cc._emp2 = energy
+
+    amps_structure = np_container_structure(amps)
+
+    def residuals(x):
+        amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
+                                    amps_structure, x)
+        rhs = cc.update_rhs(ham, amps)
+        res = cc.calc_residuals(ham, amps, rhs)
+        return merge_np_container(res)
+
+    result = root(
+        fun=residuals,
+        x0=merge_np_container(amps),
+        method='krylov',
+        options={
+            'xtol': conv_tol_res,
+            'disp': True,
+            'maxiter': max_cycle
+        }
+    )
+
+    cc._converged = result.success
+    cc._energy_corr = cc.calculate_energy(ham, amps)
+    cc._energy_tot = cc._scf.energy_tot() + cc._energy_corr
+
+    return cc._converged, cc._energy_corr, amps
+
+
 def lagrange_min_solver(cc, eamps=None, max_cycle=50,
                         conv_tol_lagr=1e-6, conv_tol_lagr_grad=1e-6,
                         max_memory=None, verbose=logger.INFO):
@@ -202,16 +260,14 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
 
     log = logger.Logger(cc.stdout, verbose)
 
-    cput_cycle = cput_total = (time.clock(), time.time())
-
     ham = cc.create_ham()
 
     if eamps is None:
         eamps = cc.init_amplitudes(ham)
 
     energy = cc.calculate_energy(ham, eamps)
-    cc._emp2 = energy
     istep = 1
+    cc._emp2 = energy
 
     epsilon = np.finfo(np.dtype(float)).eps
 
@@ -266,11 +322,9 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
     # callback=fmin_callback,
     cc._converged = result.success
     cc._energy_corr = cc.calculate_energy(ham, eamps)
-    cc._energy_tot = cc._scf.energy_tot() + energy
+    cc._energy_tot = cc._scf.energy_tot() + cc._energy_corr
 
-    log.timer('CC done', *cput_total)
-
-    return cc._converged, energy, eamps
+    return cc._converged, cc._energy_corr, eamps
 
 
 def concreter(abclass):

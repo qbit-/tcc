@@ -1068,7 +1068,30 @@ def test_cc_hubbard():   # pragma: nocover
         cc, ndiis=5, conv_tol_res=1e-6, lam=5,
         max_cycle=100)
 
+
+def test_cc_root():   # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = [
+        [8, (0., 0., 0.)],
+        [1, (0., -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+
+    mol.basis = {'H': 'sto-3g',
+                 'O': 'sto-3g', }
+    mol.build()
+    rhf = scf.RHF(mol)
+    rhf.scf()  # -76.0267656731
+
+    from tcc.cc_solvers import root_solver
+    from tcc.rccsd import RCCSD_UNIT
+    cc = RCCSD_UNIT(rhf)
+    converged, energy, _ = root_solver(
+        cc, conv_tol_res=1e-10)
+
 if __name__ == '__main__':
     test_mp2_energy()
     test_cc_unitary()
     test_cc_hubbard()
+    test_cc_root()
