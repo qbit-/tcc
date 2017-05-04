@@ -1,9 +1,8 @@
 import abc
 import time
-from pyscf import lib
 from pyscf.lib import logger
 import numpy as np
-from scipy.optimize import minimize, root
+from scipy.optimize import root
 from tcc.diis import diis_multiple
 
 

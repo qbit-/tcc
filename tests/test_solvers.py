@@ -51,13 +51,30 @@ class TestCCSolversModule(unittest.TestCase):
         self.assertEqual(np.allclose(energy, -0.2133432609672395, 1e-5), True)
 
     def test_root_solver(self):
+        from pyscf import gto
+        from pyscf import scf
+
+        mol = gto.Mole()
+        mol.verbose = 5
+        mol.atom = [
+            [8, (0., 0., 0.)],
+            [1, (0., -0.757, 0.587)],
+            [1, (0., 0.757, 0.587)]]
+
+        mol.basis = {'H': 'sto-3g',
+                     'O': 'sto-3g', }
+        mol.build(parse_arg=False)
+        rhf = scf.RHF(mol)
+        rhf.scf()  # -74.963063129719586
+
         from tcc.cc_solvers import root_solver
         from tcc.rccsd import RCCSD
-        cc = RCCSD(self.rhf)
+        cc = RCCSD(rhf)
 
         converged, energy, amps = root_solver(cc)
         self.assertEqual(converged, True)
-        self.assertEqual(np.allclose(energy, -0.2133432609672395, 1e-5), True)
+        self.assertEqual(np.allclose(
+            energy, -0.049467465836162607, 1e-5), True)
 
 if __name__ == '__main__':
     unittest.main()

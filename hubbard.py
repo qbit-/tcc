@@ -20,7 +20,7 @@ def hubbard_from_scf(scf_cls, nelec, nsites, u, pbc='y'):
     'a' - antiperiodic
     """
 
-    mol = gto.M()
+    mol = gto.M(parse_arg=False)
     mol.nelectron = nelec
 
     #
