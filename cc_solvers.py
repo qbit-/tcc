@@ -252,23 +252,25 @@ def lagrange_min_solver(cc, eamps=None, max_cycle=50,
         istep = istep + 1
         energy = new_energy
 
-    eamps, lmin, *info = minimize(lagrangian, merge_np_container(eamps),
-                                  method='Nelder-Mead',
-                                  options={'disp': True})
+    result = minimize(lagrangian, merge_np_container(eamps),
+                      method='L-BFGS-B',
+                      jac=lagrangian_gradient,
+                      options={'disp': True})
+
+    eamps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
+                                 eamps_structure, result.x)
 
     # factr=conv_tol_lagr / epsilon,
     # pgtol=conv_tol_lagr_grad,
     # maxiter=max_cycle,
-    # fprime=lagrangian_gradient,
     # callback=fmin_callback,
-    cc._converged = (info['warnflag'] == 0)
-    cc._energy_corr = cc.calculate_energy(eamps)
+    cc._converged = result.success
+    cc._energy_corr = cc.calculate_energy(ham, eamps)
     cc._energy_tot = cc._scf.energy_tot() + energy
 
     log.timer('CC done', *cput_total)
 
     return cc._converged, energy, eamps
-    return
 
 
 def concreter(abclass):

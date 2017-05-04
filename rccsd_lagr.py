@@ -4472,7 +4472,14 @@ def test_cc_lagrangian():   # pragma: nocover
     rhf = scf.RHF(mol)
     rhf.scf()
 
+    from tcc.cc_solvers import residual_diis_solver
+    from tcc.rccsd import RCCSD_UNIT
+    cc1 = RCCSD_UNIT(rhf)
+    converged, energy, amps = residual_diis_solver(
+        cc1, ndiis=5, conv_tol_energy=-1, conv_tol_res=1e-10)
+
     from tcc.cc_solvers import lagrange_min_solver
+    from tcc.rccsd_lagr import RCCSD_LAGR
     cc = RCCSD_LAGR(rhf)
     converged, energy, _ = lagrange_min_solver(
         cc, conv_tol_lagr=1e-6,
