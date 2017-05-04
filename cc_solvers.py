@@ -8,8 +8,10 @@ from tcc.diis import diis_multiple
 
 
 def residual_diis_solver(cc, amps=None, max_cycle=50,
-                         conv_tol_energy=1e-6, conv_tol_res=1e-5, lam=1, ndiis=5,
-                         diis_energy_tol=1e-4, max_memory=None, verbose=logger.INFO):
+                         conv_tol_energy=1e-6, conv_tol_res=1e-5,
+                         lam=1, ndiis=5,
+                         diis_energy_tol=1e-4, max_memory=None,
+                         verbose=logger.INFO):
     """
     Carry on a CC calculation
     :param cc: cc object
@@ -71,7 +73,8 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
                  energy, energy - old_energy, np.max(np.abs(norm_res)))
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
-                                  for field_name, val in zip(res._fields, norm_res)))
+                                  for field_name, val
+                                  in zip(res._fields, norm_res)))
 
         if abs(energy - old_energy) < conv_tol_energy:
             cc._converged = True
@@ -136,10 +139,12 @@ def classic_solver(cc, amps=None, max_cycle=50,
         log.info('istep = %d  E(%s) = %.6e'
                  ' dE = %.6e  max(|T|) = %.6e',
                  istep, cc.method_name,
-                 new_energy, new_energy - energy, np.max(np.abs(norm_diff_amps)))
+                 new_energy, new_energy - energy, np.max(
+                     np.abs(norm_diff_amps)))
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
-                                  for field_name, val in zip(amps._fields, norm_diff_amps)))
+                                  for field_name, val in zip(
+            amps._fields, norm_diff_amps)))
 
         if abs(new_energy - energy) < conv_tol_energy:
             cc._converged = True
@@ -170,20 +175,23 @@ def damp_amplitudes(cc, amps, amps_old, lam):
     :rtype: amplitudes container
     """
     return cc.types.AMPLITUDES_TYPE(*(
-        amps[ii] / lam + (lam - 1) / lam * amps_old[ii] for ii in range(len(amps))
+        amps[ii] / lam + (lam - 1) / lam * amps_old[ii]
+        for ii in range(len(amps))
     ))
 
 
-def root_solver(cc, amps=None, max_cycle=100,
-                conv_tol_res=1e-5,
+def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,
                 max_memory=None, verbose=logger.INFO):
     """
     Solves CC equations using root finding functions from scipy
 
     :param cc: cc object
     :param amps:  amplitudes container
-    :param max_cycle: number of cycles
-    :param conv_tol_res: convergence tolerance for residuals
+    :param method: str, optional. method of scipy.optimize.root to call.
+    :param options: dict, optional. Extra options to give to
+    scipy.optimize.root
+    :param conv_tol: convergence tolerance for root method.
+    For detailed control read help of scipy.optimize.root
     :param max_memory: maximal amount of memory to use
     :param verbose: verbosity level
     :rtype: converged, energy, amplitudes
@@ -214,117 +222,44 @@ def root_solver(cc, amps=None, max_cycle=100,
         res = cc.calc_residuals(ham, amps, rhs)
         return merge_np_container(res)
 
+    istep = 1
+
+    def log_residuals(x, res):
+        nonlocal istep
+        energy = cc.calculate_energy(ham,
+                                     unmerge_np_container(
+                                         cc.types.AMPLITUDES_TYPE,
+                                         amps_structure,
+                                         x))
+        log.info('istep = %d  E(%s) = %.6e'
+                 ' |T| = %.6e |R| = %.6e',
+                 istep, cc.method_name,
+                 energy,
+                 np.linalg.norm(x),
+                 np.linalg.norm(res))
+        istep += 1
+
+    if verbose >= logger.INFO:
+        callback = log_residuals
+    else:
+        callback = None
+
     result = root(
         fun=residuals,
         x0=merge_np_container(amps),
+        tol=conv_tol,
         method='krylov',
-        options={
-            'xtol': conv_tol_res,
-            'disp': True,
-            'maxiter': max_cycle
-        }
+        options=options,
+        callback=callback
     )
 
+    amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
+                                amps_structure, result.x)
     cc._converged = result.success
     cc._energy_corr = cc.calculate_energy(ham, amps)
     cc._energy_tot = cc._scf.energy_tot() + cc._energy_corr
 
     return cc._converged, cc._energy_corr, amps
-
-
-def lagrange_min_solver(cc, eamps=None, max_cycle=50,
-                        conv_tol_lagr=1e-6, conv_tol_lagr_grad=1e-6,
-                        max_memory=None, verbose=logger.INFO):
-    """
-    This solves CC equations by minimizing CC lagrangian.
-    This is typically not needed for CC theories where R = 0, such as
-    normal CC.
-    cc method has to provide lagrangian evaluation method and
-    lagrangian derivatives.
-
-    :param cc: cc object
-    :param eamps:  Extended amplitudes: amplitudes + zeta initial guess.
-    :param max_cycle: number of cycles
-    :param conv_tol_lagr: convergence tolerance for lagrangian (aka energy)
-    :param conv_tol_lagr_grad: convergence tolerance for lagrangian gradient (aka amplitudes)
-    :param max_memory: maximal amount of memory to use
-    :param verbose: verbosity level
-    :rtype: converged, energy, extended amplitudes
-    """
-    from tcc.utils import (merge_np_container,
-                           np_container_structure,
-                           unmerge_np_container)
-
-    if max_memory is None:
-        max_memory = cc.max_memory
-
-    log = logger.Logger(cc.stdout, verbose)
-
-    ham = cc.create_ham()
-
-    if eamps is None:
-        eamps = cc.init_amplitudes(ham)
-
-    energy = cc.calculate_energy(ham, eamps)
-    istep = 1
-    cc._emp2 = energy
-
-    epsilon = np.finfo(np.dtype(float)).eps
-
-    eamps_structure = np_container_structure(eamps)
-
-    def lagrangian(x):
-        return cc.calculate_lagrangian(ham,
-                                       unmerge_np_container(
-                                           cc.types.AMPLITUDES_TYPE,
-                                           eamps_structure, x)
-                                       )
-
-    def lagrangian_gradient(x):
-        return merge_np_container(
-            cc.lagrangian_gradient(ham,
-                                   unmerge_np_container(
-                                       cc.types.AMPLITUDES_TYPE,
-                                       eamps_structure, x)
-                                   )
-        )
-
-    def fmin_callback(x):
-        """
-        Callback function for printing during minimization
-        """
-        nonlocal istep
-        nonlocal energy
-        eamps = unmerge_np_container(
-            cc.types.AMPLITUDES_TYPE, eamps_structure, x)
-
-        new_energy = cc.calculate_energy(ham, eamps)
-        norm_amps = [np.linalg.norm(eamps[ii][jj])
-                     for ii in range(len(eamps)) for jj in range(len(eamps[ii]))]
-        log.info('istep = %d  E(%s) = %.6e'
-                 ' dE = %.6e  max(|T|) = %.6e',
-                 istep, cc.method_name,
-                 new_energy, new_energy - energy, np.max(np.abs(norm_amps)))
-        istep = istep + 1
-        energy = new_energy
-
-    result = minimize(lagrangian, merge_np_container(eamps),
-                      method='L-BFGS-B',
-                      jac=lagrangian_gradient,
-                      options={'disp': True})
-
-    eamps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
-                                 eamps_structure, result.x)
-
-    # factr=conv_tol_lagr / epsilon,
-    # pgtol=conv_tol_lagr_grad,
-    # maxiter=max_cycle,
-    # callback=fmin_callback,
-    cc._converged = result.success
-    cc._energy_corr = cc.calculate_energy(ham, eamps)
-    cc._energy_tot = cc._scf.energy_tot() + cc._energy_corr
-
-    return cc._converged, cc._energy_corr, eamps
 
 
 def concreter(abclass):
