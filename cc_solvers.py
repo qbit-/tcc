@@ -49,14 +49,14 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
         if diis.ready:
             amps = cc.types.AMPLITUDES_TYPE(*diis.predict())
 
-        rhs = cc.update_rhs(ham, amps)
+        res = cc.calc_residuals(ham, amps)
+        rhs = cc.update_rhs(ham, amps, res)
         amps = cc.solve_amps(ham, amps, rhs)
         if lam != 1:
             amps = damp_amplitudes(cc, amps, old_amps, lam)
         diis.push_variable(amps)
 
-        rhs = cc.update_rhs(ham, amps)
-        res = cc.calc_residuals(ham, amps, rhs)
+        res = cc.calc_residuals(ham, amps)
         diis.push_predictor(res)
 
         norm_res = np.array([
@@ -485,7 +485,7 @@ class CC_lagrangian(abc.ABC):
         """
 
     @abc.abstractclassmethod
-    def lagrangian_gradient(self, ham, amps):
+    def calc_residuals(self, ham, amps):
         """
         Calculate gradient of CC lagrangian
         """
