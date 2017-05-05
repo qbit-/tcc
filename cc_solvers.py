@@ -124,7 +124,8 @@ def classic_solver(cc, amps=None, max_cycle=50,
     cc._emp2 = energy
 
     for istep in range(max_cycle):
-        rhs = cc.update_rhs(ham, amps)
+        res = cc.calc_residuals(ham, amps)
+        rhs = cc.update_rhs(ham, amps, res)
         new_amps = cc.solve_amps(ham, amps, rhs)
         if lam != 1:
             new_amps = damp_amplitudes(cc, new_amps, amps, lam)
@@ -219,8 +220,7 @@ def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,
     def residuals(x):
         amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
                                     amps_structure, x)
-        rhs = cc.update_rhs(ham, amps)
-        res = cc.calc_residuals(ham, amps, rhs)
+        res = cc.calc_residuals(ham, amps)
         return merge_np_container(res)
 
     istep = 1
@@ -374,7 +374,7 @@ class CC(abc.ABC):
         """
 
     @abc.abstractclassmethod
-    def update_rhs(self, ham, amps):
+    def update_rhs(self, ham, amps, res):
         """
         Iteration of Coupled Cluster. Update right hand side of the
         equations
@@ -393,7 +393,7 @@ class CC(abc.ABC):
         """
 
     @abc.abstractclassmethod
-    def calc_residuals(self, ham, amps, rhs):
+    def calc_residuals(self, ham, amps):
         """
         Calculates residuals of CC equations
         """

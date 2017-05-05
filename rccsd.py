@@ -97,9 +97,9 @@ class RCCSD(CC):
 
         return energy
 
-    def update_rhs(self, h, a):
+    def calc_residuals(self, h, a):
         """
-        Updates right hand side of the CC equations, commonly referred as G
+        Calculates CC residuals for CC equations
         """
 
         tau0 = (
@@ -441,7 +441,7 @@ class RCCSD(CC):
             + einsum("ijab->ijab", tau70)
         )
 
-        g1 = (
+        r1 = (
             einsum("jb,jiba->ai", tau3, tau4)
             - einsum("aj,ji->ai", a.t1, tau7)
             + einsum("bakj,ijkb->ai", a.t2, tau9)
@@ -451,7 +451,7 @@ class RCCSD(CC):
             + einsum("ia->ai", h.f.ov.conj())
         )
 
-        g2 = (
+        r2 = (
             einsum("ikac,kjbc->abij", tau13, tau14)
             + einsum("ac,cbij->abij", tau16, a.t2)
             + einsum("bk,kjia->abij", a.t1, tau20)
@@ -469,13 +469,7 @@ class RCCSD(CC):
             - einsum("jiba->abij", tau71)
         )
 
-        e_ai = cc_denom(h.f, 2, 'dir', 'full')
-        e_abij = cc_denom(h.f, 4, 'dir', 'full')
-
-        g1 = g1 - a.t1 / e_ai
-        g2 = g2 - a.t2 / e_abij
-
-        return self.types.RHS_TYPE(g1=g1, g2=g2)
+        return self.types.RESIDUALS_TYPE(r1=r1, r2=r2)
 
     def solve_amps(self, h, a, g):
         """
@@ -489,12 +483,12 @@ class RCCSD(CC):
               for ii in range(len(g)))
         )
 
-    def calc_residuals(self, h, a, g):
+    def update_rhs(self, h, a, r):
         """
-        Calculates CC residuals from RHS and amplitudes
+        Updates right hand side of the CC equations, commonly referred as G
         """
-        return self.types.RESIDUALS_TYPE(
-            *[a[ii] / cc_denom(h.f, a[ii].ndim, 'dir', 'full') + g[ii]
+        return self.types.RHS_TYPE(
+            *[r[ii] - a[ii] / cc_denom(h.f, a[ii].ndim, 'dir', 'full')
               for ii in range(len(a))]
         )
 
@@ -529,9 +523,9 @@ class RCCSD_UNIT(RCCSD):
         )
         return energy
 
-    def update_rhs(self, h, a):
+    def calc_residuals(self, h, a):
         """
-        Updates right hand side of the CC equations, commonly referred as G
+        Updates residuals of the CC equations
         """
 
         tau0 = (
@@ -934,7 +928,7 @@ class RCCSD_UNIT(RCCSD):
             + einsum("ijab->ijab", tau84)
         )
 
-        g1 = (
+        r1 = (
             2 * einsum("jb,jiba->ai", tau3, tau4)
             - 2 * einsum("aj,ji->ai", a.t1, tau7)
             + 2 * einsum("bakj,ikjb->ai", a.t2, tau9)
@@ -944,7 +938,7 @@ class RCCSD_UNIT(RCCSD):
             + 2 * einsum("jicb,jabc->ai", tau13, h.v.ovvv)
         )
 
-        g2 = (
+        r2 = (
             2 * einsum("bckj,ikac->abij", a.t2, tau14)
             + 2 * einsum("bcki,jkac->abij", a.t2, tau15)
             + 2 * einsum("ijba->abij", tau20)
@@ -963,13 +957,7 @@ class RCCSD_UNIT(RCCSD):
             + 2 * einsum("jiba->abij", tau85)
         )
 
-        e_ai = cc_denom(h.f, 2, 'dir', 'full')
-        e_abij = cc_denom(h.f, 4, 'dir', 'full')
-
-        g1 = g1 - 2 * a.t1 / e_ai
-        g2 = g2 - 2 * (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])) / e_abij
-
-        return self.types.RHS_TYPE(g1=g1, g2=g2)
+        return self.types.RESIDUALS_TYPE(r1=r1, r2=r2)
 
     def solve_amps(self, h, a, g):
         """
@@ -996,14 +984,14 @@ class RCCSD_UNIT(RCCSD):
 
         return self.types.AMPLITUDES_TYPE(t1, t2)
 
-    def calc_residuals(self, h, a, g):
+    def update_rhs(self, h, a, r):
         """
-        Calculates CC residuals from RHS and amplitudes
+        Calculates RHS of the fixed point iteration of CC equations
         """
-        return self.types.RESIDUALS_TYPE(
-            r1=2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full') + g.g1,
-            r2=2 * (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])
-                    ) / cc_denom(h.f, 4, 'dir', 'full') + g.g2
+        return self.types.RHS_TYPE(
+            g1=r.r1 - 2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
+            g2=r.r2 - 2 * (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])
+                    ) / cc_denom(h.f, 4, 'dir', 'full')
         )
 
 
@@ -1049,6 +1037,7 @@ def test_cc_unitary():   # pragma: nocover
     from tcc.cc_solvers import classic_solver
     from tcc.rccsd import RCCSD_UNIT
     cc = RCCSD_UNIT(rhf)
+
     converged, energy, _ = residual_diis_solver(
         cc, ndiis=5, conv_tol_energy=-1, conv_tol_res=1e-10)
 

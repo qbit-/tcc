@@ -1184,25 +1184,17 @@ class RCCSDT(RCCSD):
             + einsum("kjibca->abcijk", tau210)
         )
 
-        e_ai = cc_denom(h.f, 2, 'dir', 'full')
-        e_abij = cc_denom(h.f, 4, 'dir', 'full')
-        e_abcijk = cc_denom(h.f, 6, 'dir', 'full')
+        return self.RESIDUALS_TYPE(r1=r1, r2=r2, r3=r3)
 
-        g1 = g1 - a.t1 / e_ai
-        g2 = g2 - a.t2 / e_abij
-        g3 = g3 - (a.t3 - a.t3.transpose([2, 1, 0, 3, 4, 5])) / e_abcijk
-
-        return self.RHS_TYPE(g1=g1, g2=g2, g3=g3)
-
-    def calc_residuals(self, h, a, g):
+    def calc_residuals(self, h, a, r):
         """
-        Calculates CC residuals from RHS and amplitudes
+        Calculates right hand side of CC equations
         """
-        return self.RESIDUALS_TYPE(
-            r1=a.t1 / cc_denom(h.f, 2, 'dir', 'full') + g.g1,
-            r2=a.t2 / cc_denom(h.f, 4, 'dir', 'full') + g.g2,
-            r3=(a.t3 - a.t3.transpose([2, 1, 0, 3, 4, 5])) /
-            cc_denom(h.f, 6, 'dir', 'full') + g.g3
+        return self.RHS_TYPE(
+            g1=r.r1 - a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
+            g2=r.r2 - a.t2 / cc_denom(h.f, 4, 'dir', 'full'),
+            g3=r.r3 - (a.t3 - a.t3.transpose([2, 1, 0, 3, 4, 5])) /
+            cc_denom(h.f, 6, 'dir', 'full')
         )
 
 

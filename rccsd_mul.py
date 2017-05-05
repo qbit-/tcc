@@ -99,9 +99,9 @@ class RCCSD_MUL(CC):
 
         return energy
 
-    def update_rhs(self, h, a):
+    def calc_residuals(self, h, a):
         """
-        Updates right hand side of the CC equations, commonly referred as G
+        Calculates ersiduals of the CC equations
         """
 
         tau0 = (
@@ -719,7 +719,7 @@ class RCCSD_MUL(CC):
             + einsum("ijab->ijab", tau128)
         )
 
-        g1 = (
+        r1 = (
             einsum("jb,jiba->ai", tau3, tau4) / 2
             + einsum("bi,ab->ai", a.t1, tau7) / 2
             - einsum("aj,ji->ai", a.t1, tau10) / 2
@@ -729,7 +729,7 @@ class RCCSD_MUL(CC):
             + einsum("bj,jiba->ai", a.t1, tau12)
         )
 
-        g2 = (
+        r2 = (
             einsum("ckai,jkbc->aibj", a.t2, tau14) / 2
             + einsum("bjck,ikac->aibj", a.t2, tau15) / 2
             + einsum("akcj,ikbc->aibj", a.t2, tau16) / 4
@@ -745,13 +745,7 @@ class RCCSD_MUL(CC):
             + einsum("jiba->aibj", tau129) / 4
         )
 
-        e_ai = cc_denom(h.f, 2, 'mul', 'full')
-        e_aibj = cc_denom(h.f, 4, 'mul', 'full')
-
-        g1 = g1 - a.t1 / e_ai
-        g2 = g2 - a.t2 / e_aibj
-
-        return self.types.RHS_TYPE(g1=g1, g2=g2)
+        return self.types.RESIDUALS_TYPE(r1=r1, r2=r2)
 
     def solve_amps(self, h, a, g):
         """
@@ -765,12 +759,12 @@ class RCCSD_MUL(CC):
               for ii in range(len(g)))
         )
 
-    def calc_residuals(self, h, a, g):
+    def update_rhs(self, h, a, r):
         """
         Calculates CC residuals from RHS and amplitudes
         """
         return self.types.RESIDUALS_TYPE(
-            *[a[ii] / cc_denom(h.f, a[ii].ndim, 'mul', 'full') + g[ii]
+            *[r[ii] - a[ii] / cc_denom(h.f, a[ii].ndim, 'mul', 'full')
               for ii in range(len(a))]
         )
 
@@ -846,9 +840,9 @@ class RCCSD_MUL_RI(RCCSD_MUL):
 
         return energy
 
-    def update_rhs(self, h, a):
+    def calc_residuals(self, h, a):
         """
-        Updates right hand side of the CC equations, commonly referred as G
+        Calculates residuals of CC equations
         Automatically generated
         """
 
@@ -1400,7 +1394,7 @@ class RCCSD_MUL_RI(RCCSD_MUL):
             + einsum("ijab->ijab", tau116)
         )
 
-        g1 = (
+        r1 = (
             - einsum("aj,ji->ai", a.t1, tau11) / 2
             + einsum("jb,jiba->ai", tau14, tau15) / 2
             + einsum("qja,qji->ai", tau17, h.l.poo) / 2
@@ -1410,7 +1404,7 @@ class RCCSD_MUL_RI(RCCSD_MUL):
             + 2 * einsum("q,qai->ai", tau5, h.l.pvo)
         )
 
-        g2 = (
+        r2 = (
             einsum("qjb,qia->aibj", tau18, tau33) / 2
             + einsum("jidc,acbd->aibj", tau34, tau36) / 2
             + einsum("jkca,ikbc->aibj", tau34, tau37) / 4
@@ -1438,13 +1432,7 @@ class RCCSD_MUL_RI(RCCSD_MUL):
             - einsum("jiba->aibj", tau117) / 4
         )
 
-        e_ai = cc_denom(h.f, 2, 'mul', 'full')
-        e_aibj = cc_denom(h.f, 4, 'mul', 'full')
-
-        g1 = g1 - a.t1 / e_ai
-        g2 = g2 - a.t2 / e_aibj
-
-        return self.types.RHS_TYPE(g1=g1, g2=g2)
+        return self.types.RESIDUALS_TYPE(r1=r1, r2=r2)
 
 
 class RCCSD_MUL_RI_HUB(RCCSD_MUL_RI):
