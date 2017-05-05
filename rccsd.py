@@ -991,7 +991,7 @@ class RCCSD_UNIT(RCCSD):
         return self.types.RHS_TYPE(
             g1=r.r1 - 2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
             g2=r.r2 - 2 * (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])
-                    ) / cc_denom(h.f, 4, 'dir', 'full')
+                           ) / cc_denom(h.f, 4, 'dir', 'full')
         )
 
 
@@ -1026,8 +1026,8 @@ def test_cc_unitary():   # pragma: nocover
         [1, (0., -0.757, 0.587)],
         [1, (0., 0.757, 0.587)]]
 
-    mol.basis = {'H': 'cc-pvdz',
-                 'O': 'cc-pvdz', }
+    mol.basis = {'H': 'sto-3g',
+                 'O': 'sto-3g', }
     mol.build()
     rhf = scf.RHF(mol)
     # rhf = scf.density_fit(scf.RHF(mol))
@@ -1059,5 +1059,5 @@ def test_cc_hubbard():   # pragma: nocover
 
 if __name__ == '__main__':
     test_mp2_energy()
-    test_cc_unitary()
     test_cc_hubbard()
+    test_cc_unitary()
