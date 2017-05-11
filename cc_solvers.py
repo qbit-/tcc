@@ -67,9 +67,10 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
         log.info('istep = %d  E(%s) = %.6e'
-                 ' dE = %.6e  max(|r|) = %.6e',
+                 ' dE = %.6e  max(|r|) = %.6e (r%d)',
                  istep, cc.method_name,
-                 energy, energy - old_energy, np.max(np.abs(norm_res)))
+                 energy, energy - old_energy,
+                 np.max(np.abs(norm_res)), np.argmax(np.abs(norm_res)))
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val
@@ -137,10 +138,11 @@ def classic_solver(cc, amps=None, max_cycle=50,
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
         log.info('istep = %d  E(%s) = %.6e'
-                 ' dE = %.6e  max(|T|) = %.6e',
+                 ' dE = %.6e  max(|T|) = %.6e (T%d)',
                  istep, cc.method_name,
-                 new_energy, new_energy - energy, np.max(
-                     np.abs(norm_diff_amps)))
+                 new_energy, new_energy - energy,
+                 np.max(np.abs(norm_diff_amps)),
+                 np.argmax(np.abs(norm_diff_amps)))
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val in zip(
@@ -396,102 +398,4 @@ class CC(abc.ABC):
     def calc_residuals(self, ham, amps):
         """
         Calculates residuals of CC equations
-        """
-
-
-class CC_lagrangian(abc.ABC):
-    """
-    This is an abstract class implementing a CC calculation
-    by lagrangian minimization. 
-    Normally, subclasses need to override properties
-    :py:attr:`ham`  and methods :py:attr:`init_amps`,
-    :py:attr:`lagrangian`, :py:attr:`gradient`, :py:attr:`calculate_energy`
-    """
-
-    def __init__(self, mf):
-        """
-        Initialize CC by copying values from the HF calculation
-
-        Parameters
-        ----------
-
-        mf
-           SCF object containing previous SCF calculation
-        frozen
-           list of frozen orbitals
-        mo_energy
-           list of orbital energies (Fock eigenvalues)
-        mo_coeff
-           MO coefficients (Fock eigenvectors)
-        """
-
-        # The following should not be modified
-        self._mol = mf.mol
-        self._scf = mf
-        self._converged = False
-        self._energy_corr = None
-        self._energy_tot = None
-        self._amps = None
-        self._zeta = None
-
-        # Those are parameters to modify
-        self.verbose = self._mol.verbose
-        self.max_memory = mf.max_memory
-        self.stdout = self._mol.stdout
-
-    @property
-    def energy_corr(self):
-        return self._energy_corr
-
-    @property
-    def energy_tot(self):
-        return self._energy_tot
-
-    @abc.abstractproperty
-    def mos(self):
-        """
-        Returns a constructor for a MOS object
-        """
-
-    @abc.abstractproperty
-    def types(self):
-        """
-        Contains type definitions for parameters of the method
-        """
-
-    @abc.abstractproperty
-    def method_name(self):
-        """
-        Returns the name of a prticular method
-        """
-
-    @abc.abstractclassmethod
-    def create_ham(self):
-        """
-        One and two electron integrals in the MO basis along
-        with the transformation matrix
-        """
-
-    @abc.abstractclassmethod
-    def init_amplitudes(self, ham):
-        """
-        Initialize amplitudes
-        """
-
-    @abc.abstractclassmethod
-    def calculate_lagrangian(self, ham, amps):
-        """
-        Calculates CC lagrangian value with current amplitudes
-        """
-
-    @abc.abstractclassmethod
-    def calc_residuals(self, ham, amps):
-        """
-        Calculate gradient of CC lagrangian
-        """
-
-    @abc.abstractclassmethod
-    def calculate_energy(self, ham, amps):
-        """
-        Calculate Coupled Cluster energy
         """
