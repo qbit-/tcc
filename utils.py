@@ -21,6 +21,20 @@ def cpd_rebuild(factors):
     return t.reshape(tensor_shape)
 
 
+def cpd_initialize(ext_sizes, rank):
+    """
+    Initialize a CPD decomposition.
+    :param ext_sizes:  sizes of external indices
+    :param rank:  rank of the CPD decomposition
+
+    >>> np.random.seed(0)
+    >>> us = cpd_initialize((2,3,1), 3)
+    """
+
+    return (np.random.rand(size, rank)
+            for size in ext_sizes)
+
+
 def khatrirao(matrices, reverse=False):
     """
     Compute the Khatri-Rao product of all matrices in list "matrices
