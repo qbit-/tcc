@@ -6,7 +6,7 @@ from collections import namedtuple
 from types import SimpleNamespace
 
 
-class RCCSD_EXT(CC):
+class RCCSD_LR(CC):
     """
     This class implements classic RCCSD method
     with vvoo ordered amplitudes and also solves for deexcitations
@@ -56,7 +56,7 @@ class RCCSD_EXT(CC):
 
     @property
     def method_name(self):
-        return 'RCCSD_EXT'
+        return 'RCCSD_LR'
 
     def create_ham(self):
         """
@@ -107,7 +107,7 @@ class RCCSD_EXT(CC):
             gt2=r.rt2 - (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])
                          ) / cc_denom(h.f, 4, 'dir', 'full'),
             gz1=r.rz1 - 2 * a.z1 / cc_denom(h.f, 2, 'dir', 'full'),
-            gz2=r.rz2 - (2 * a.z2 - a.t2.transpose([0, 1, 3, 2])
+            gz2=r.rz2 - (2 * a.z2 - a.z2.transpose([0, 1, 3, 2])
                          ) / cc_denom(h.f, 4, 'dir', 'full')
         )
 
@@ -2460,7 +2460,7 @@ class RCCSD_EXT(CC):
         )
 
 
-def test_root_solver():
+def test_root_solver(): # pragma: nocover
     from pyscf import gto
     from pyscf import scf
 
@@ -2478,9 +2478,9 @@ def test_root_solver():
 
     from tcc.cc_solvers import root_solver
     from tcc.cc_solvers import classic_solver, residual_diis_solver
-    from tcc.rccsd_dir_ext import RCCSD_EXT
+#    from tcc.rccsd_dir_lr import RCCSD_LR
     from tcc.rccsd import RCCSD_UNIT
-    cc1 = RCCSD_EXT(rhf)
+    cc1 = RCCSD_LR(rhf)
     cc2 = RCCSD_UNIT(rhf)
 
     converged1, energy1, amps1 = root_solver(cc1)
@@ -2500,8 +2500,8 @@ def test_root_solver():
         z2=np.zeros_like(amps2.t2)
     )
 
-    converged1, energy1, amps = classic_solver(
-        cc1, conv_tol_energy=-1, amps=ampi, max_cycle=1)
+    converged1, energy1, amps = residual_diis_solver(
+        cc1, conv_tol_energy=-1, max_cycle=20)
 
     print('|z1| = {}'.format(
         np.linalg.norm((amps[1] - amps1[1]).flatten())
