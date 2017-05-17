@@ -2,7 +2,7 @@ import abc
 import time
 from pyscf.lib import logger
 import numpy as np
-from scipy.optimize import root
+from scipy.optimize import root, minimize
 from tcc.diis import diis_multiple
 
 
@@ -253,7 +253,7 @@ def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,
         fun=residuals,
         x0=merge_np_container(amps),
         tol=conv_tol,
-        method='krylov',
+        method=method,
         options=options,
         callback=callback
     )
@@ -270,6 +270,104 @@ def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,
 
     return converged, cc._energy_corr, amps
 
+
+def lagrangian_solver(cc, amps=None, method='L-BFGS-B',
+                      options=None, conv_tol=1e-5,
+                      max_memory=None, verbose=logger.INFO):
+    """
+    Solves CC equations using minimization functions from scipy
+
+    :param cc: cc object
+    :param amps:  amplitudes container
+    :param method: str, optional. method of scipy.optimize.root to call.
+    :param options: dict, optional. Extra options to give to
+    scipy.optimize.root
+    :param conv_tol: convergence tolerance for root method.
+    For detailed control read help of scipy.optimize.root
+    :param max_memory: maximal amount of memory to use
+    :param verbose: verbosity level
+    :rtype: converged, energy, amplitudes
+    """
+    from tcc.utils import (merge_np_container,
+                           np_container_structure,
+                           unmerge_np_container)
+
+    if max_memory is None:
+        max_memory = cc.max_memory
+
+    log = logger.Logger(cc.stdout, verbose)
+
+    cput_cycle = cput_total = (time.clock(), time.time())
+
+    ham = cc.create_ham()
+
+    if amps is None:
+        amps = cc.init_amplitudes(ham)
+
+    energy = cc.calculate_energy(ham, amps)
+    cc._emp2 = energy
+
+    amps_structure = np_container_structure(amps)
+
+    def gradient(x):
+        amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
+                                    amps_structure, x)
+        res = cc.calc_residuals(ham, amps)
+        return merge_np_container(res)
+
+    def constraint(x):
+        amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
+                                    amps_structure, x)
+        return cc.calc_lagrangian(ham, amps)
+
+    def gradient_constraint(x):
+        amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
+                                    amps_structure, x)
+        return cc.calc_lagrangian(ham, amps)
+
+    istep = 1
+
+    def log_residuals(x):
+        nonlocal istep
+        nonlocal cput_cycle
+        energy = cc.calculate_energy(ham,
+                                     unmerge_np_container(
+                                         cc.types.AMPLITUDES_TYPE,
+                                         amps_structure,
+                                         x))
+        log.info('istep = %d  E(%s) = %.6e'
+                 ' |T| = %.6e',
+                 istep, cc.method_name,
+                 energy,
+                 np.linalg.norm(x),)
+        cput_cycle = log.timer('CC iter', *cput_cycle)
+        istep += 1
+
+    if verbose >= logger.INFO:
+        callback = log_residuals
+    else:
+        callback = None
+
+    result = minimize(
+        fun=lagrangian,
+        x0=merge_np_container(amps),
+        tol=conv_tol,
+        method=method,
+        options=options,
+        callback=callback
+    )
+
+    amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
+                                amps_structure, result.x)
+    converged = result.success
+    energy = cc.calculate_energy(ham, amps)
+
+    cc._energy_corr = energy
+    cc._energy_tot = cc._scf.energy_tot() + energy
+    cc._amps = amps
+    log.timer('CC done', *cput_total)
+
+    return converged, cc._energy_corr, amps
 
 def concreter(abclass):
     """
