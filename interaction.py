@@ -224,20 +224,20 @@ class HAM_SPINLESS_RI_CORE_HUBBARD:
             else:
                 u12 = sqrt(u)
 
-                Lpnn = u12 * np.reshape(
-                    np.transpose(khatrirao(
-                        (np.conj((self.mos.mo_coeff).T),
-                         self.mos.mo_coeff.T)
-                    )), (nmo, nmo, nmo)
-                )
+            Lpnn = u12 * np.reshape(
+                np.transpose(khatrirao(
+                    (np.conj((self.mos.mo_coeff).T),
+                     self.mos.mo_coeff.T)
+                )), (nmo, nmo, nmo)
+            )
 
-                VSymmetricRI = namedtuple(
-                    'VSymmetricRI', ('poo', 'pov', 'pvv', 'pvo'))
+            VSymmetricRI = namedtuple(
+                'VSymmetricRI', ('poo', 'pov', 'pvv', 'pvo'))
 
-                self.l = VSymmetricRI(poo=ref_ndarray(Lpnn[:, :nocc, :nocc]),
-                                      pov=ref_ndarray(Lpnn[:, :nocc, nocc:]),
-                                      pvv=ref_ndarray(Lpnn[:, nocc:, nocc:]),
-                                      pvo=ref_ndarray(Lpnn[:, nocc:, :nocc]))
+            self.l = VSymmetricRI(poo=ref_ndarray(Lpnn[:, :nocc, :nocc]),
+                                  pov=ref_ndarray(Lpnn[:, :nocc, nocc:]),
+                                  pvv=ref_ndarray(Lpnn[:, nocc:, nocc:]),
+                                  pvo=ref_ndarray(Lpnn[:, nocc:, :nocc]))
         else:
             raise ValueError('SCF object did not supply Hubbard interaction')
 
@@ -293,5 +293,104 @@ class _HAM_SPINLESS_FULL_CORE_DIR_MATFILE:
                            )
         else:
             raise ValueError('File not found: {}'.format(filename))
+
+        log.timer('CCSD integral transformation', *cput0)
+
+class _HAM_SPINLESS_THC_CORE_MATFILE:
+    """
+    Mulliken ordered THC hamiltonian with THC decomposed interaction
+    The order of factors in THC decomposition is:
+
+    v_{pqrs} = \sum_{m, n} x1_{p,m} x2_{q,m} x5_{m, n} x3_{r,n} x4_{p,n}
+
+    """
+
+    def __init__(self, cc, filename=None):
+        cput0 = (time.clock(), time.time())
+        log = logger.Logger(cc.stdout, cc.verbose)
+
+        # Get sizes
+        self.mos = cc.mos
+        nocc = self.mos.nocc
+        nmo = self.mos.nmo
+
+        from scipy.io import loadmat
+        from os.path import isfile
+
+        if filename is None:
+            raise ValueError('No file provided for THC interaction')
+
+        # Add Fock matrix
+        if (isfile(filename)):
+            FockMatrix = namedtuple('FockMatrix', ('oo', 'ov', 'vv'))
+            fock = loadmat(filename, variable_names=('Fmo'),
+                           matlab_compatible=True)['Fmo']
+            self.f = FockMatrix(oo=fock[:nocc, :nocc],
+                                ov=fock[:nocc, nocc:],
+                                vv=fock[nocc:, nocc:]
+                                )
+
+        if (isfile(filename)):
+            VTHC = namedtuple('VTHC', ('x1', 'x2', 'x3', 'x4',
+                                       'x5'))
+            THCBlockedFactor = namedtuple('THCBlockedFactor', ('o', 'v'))
+
+            wf1 = loadmat(filename, variable_names=('WFmo'),
+                          matlab_compatible=True)['WFmo'][0]
+
+            self.v = VTHC(x1=THCBlockedFactor(o=wf1[0][:nocc, :],
+                                              v=wf1[0][nocc:, :]),
+                          x2=THCBlockedFactor(o=wf1[1][:nocc, :],
+                                              v=wf1[1][nocc:, :]),
+                          x3=THCBlockedFactor(o=wf1[2][:nocc, :],
+                                              v=wf1[2][nocc:, :]),
+                          x4=THCBlockedFactor(o=wf1[3][:nocc, :],
+                                              v=wf1[3][nocc:, :]),
+                          x5=wf1[4]
+            )
+        else:
+            raise ValueError('File not found: {}'.format(filename))
+
+        log.timer('CCSD integral transformation', *cput0)
+
+
+class HAM_SPINLESS_THC_CORE_HUBBARD:
+    """
+    Creates an (analytically) THC decomposed Hubbard hamiltonian
+    """
+
+    def __init__(self, cc, mos=None):
+        cput0 = (time.clock(), time.time())
+        log = logger.Logger(cc.stdout, cc.verbose)
+
+        # Get sizes
+        if mos is None:
+            self.mos = cc.mos
+        else:
+            self.mos = mos
+
+        nocc = self.mos.nocc
+        nao = self.mos.mo_coeff.shape[0]
+
+        # Add Fock matrix
+        self.f = _assemble_fock(cc, mos)
+
+        # Build CPD integrals analytically
+
+        if hasattr(cc._scf, '_hubbard_interaction'):
+            u = cc._scf._hubbard_interaction
+
+            CT = (self.mos.mo_coeff) # Why was it done this way?
+            THCBlockedFactor = namedtuple('THCBlockedFactor', ('o', 'v'))
+            VTHC = namedtuple('VTHC', ('x1', 'x2', 'x3', 'x4',
+                                       'x5'))
+
+            self.v = VTHC(x1=THCBlockedFactor(CT[:nocc, :], CT[nocc:, :]),
+                          x2=THCBlockedFactor(CT[:nocc, :], CT[nocc:, :]),
+                          x3=THCBlockedFactor(CT[:nocc, :], CT[nocc:, :]),
+                          x4=THCBlockedFactor(CT[:nocc, :], CT[nocc:, :]),
+                          x5=u * np.eye(nao))
+        else:
+            raise ValueError('SCF object did not supply Hubbard interaction')
 
         log.timer('CCSD integral transformation', *cput0)
