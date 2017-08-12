@@ -2,12 +2,45 @@ import numpy as np
 import collections
 
 
-def khatrirao(matrices, reverse=False):
-    """
-    Compute the Khatri-Rao product of all matrices in list "matrices
-    :param matrices: iterable with matrices
-    :param reverse: if reversed order of multiplications is needed
-    Reverse=True to be compliant with Matlab code
+def khatrirao(matrices, skip_matrix=None, reverse=False):
+    """Khatri-Rao product of a list of matrices
+
+        This can be seen as a column-wise kronecker product.
+        (see [1]_ for more details).
+
+    Parameters
+    ----------
+    :param matrices: ndarray list
+        list of matrices with the same number of columns, i.e.::
+
+            for i in len(matrices):
+                matrices[i].shape = (n_i, m)
+
+    :param skip_matrix: None or int, optional, default is None
+        if not None, index of a matrix to skip
+
+    :param reverse: bool, optional
+        if True, the order of the matrices is reversed
+
+    Returns
+    -------
+    khatri_rao_product: matrix of shape ``(prod(n_i), m)``
+        where ``prod(n_i) = prod([m.shape[0] for m in matrices])``
+        i.e. the product of the number of rows of all the matrices in the product.
+
+    Notes
+    -----
+    Mathematically:
+
+    .. math::
+         \\text{If every matrix } U_k \\text{ is of size } (I_k \\times R),\\\\
+         \\text{Then } \\left(U_1 \\bigodot \\cdots \\bigodot U_n \\right) \\text{ is of size } (\\prod_{k=1}^n I_k \\times R)
+
+
+    References
+    ----------
+    .. [1] T.G.Kolda and B.W.Bader, "Tensor Decompositions and Applications",
+       SIAM REVIEW, vol. 51, n. 3, pp. 455-500, 2009.
 
     >>> import numpy as np
     >>> a = np.array([[1,3],[2,4]])
@@ -15,40 +48,34 @@ def khatrirao(matrices, reverse=False):
     >>> np.sum(khatrirao((a,b)),1)[2]
     31.0
     """
-    # If reverse is true, does the product in reverse order.
-    matorder = range(len(matrices)) if not reverse else list(
-        reversed(range(len(matrices))))
+    if skip_matrix is not None:
+        matrices = [matrices[i] for i in range(len(matrices)) if i != skip_matrix]
 
-    # Error checking on matrices; compute number of rows in result.
-    # N = number of columns (must be same for each input)
-    N = matrices[0].shape[1]
-    # Compute number of rows in resulting matrix
-    # After the loop, M = number of rows in result.
-    M = 1
-    for i in matorder:
-        if matrices[i].ndim != 2:
-            raise ValueError("Each argument must be a matrix.")
-        if N != (matrices[i].shape)[1]:
-            raise ValueError(
-                "All matrices must have the same number of columns.")
-        M *= (matrices[i].shape)[0]
+    n_columns = matrices[0].shape[1]
 
-    # Computation
-    # Preallocate result.
-    P = np.zeros((M, N))
+    # Optional part, testing whether the matrices have the proper size
+    for i, matrix in enumerate(matrices):
+        if matrix.ndim != 2:
+            raise ValueError('All the matrices must have exactly 2 dimensions!'
+                             'Matrix {} has dimension {} != 2.'.format(
+                                 i, matrix.ndim))
+        if matrix.shape[1] != n_columns:
+            raise ValueError('All matrices must have same number of columns!'
+                             'Matrix {} has {} columns != {}.'.format(
+                                 i, matrix.shape[1], n_columns))
 
-    # n loops over all column indices
-    for n in range(N):
-        # ab = nth col of first matrix to consider
-        ab = matrices[matorder[0]][:, n]
-        # loop through matrices
-        for i in matorder[1:]:
-            # Compute outer product of nth columns
-            ab = np.outer(matrices[i][:, n], ab[:])
-        # Fill nth column of P with flattened result
-        P[:, n] = ab.flatten()
-    return P
+    n_factors = len(matrices)
 
+    if reverse:
+        matrices = matrices[::-1]
+        # Note: we do NOT use .reverse() which would reverse matrices even outside this function
+
+    start = ord('a')
+    common_dim = 'z'
+    target = ''.join(chr(start + i) for i in range(n_factors))
+    source = ','.join(i+common_dim for i in target)
+    operation = source+'->'+target+common_dim
+    return np.einsum(operation, *matrices).reshape((-1, n_columns))
 
 def unroll_iterable(l):
     for el in l:

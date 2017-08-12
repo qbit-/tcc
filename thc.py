@@ -15,8 +15,8 @@ def thc_rebuild(factors):
         raise ValueError('THC decomposition has only 5 factors')
 
     tensor_shape = tuple(factor.shape[0] for factor in factors[:4])
-    t = khatrirao(factors[:2], True).dot(factors[4]).dot(
-        khatrirao(factors[2:4], True).transpose())
+    t = khatrirao(factors[:2], reverse=True).dot(factors[4]).dot(
+        khatrirao(factors[2:4], reverse=True).transpose())
 
     return t.reshape(tensor_shape)
 

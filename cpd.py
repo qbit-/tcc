@@ -17,7 +17,7 @@ def cpd_rebuild(factors):
     N = len(factors)
     tensor_shape = tuple(factor.shape[0] for factor in factors)
     t = khatrirao(tuple(factors[ii] for ii in range(
-        N - 1)), True).dot(factors[N - 1].transpose())
+        N - 1)), reverse=True).dot(factors[N - 1].transpose())
     return t.reshape(tensor_shape)
 
 
@@ -57,3 +57,12 @@ def cpd_initialize(ext_sizes, rank):
 
     return (np.random.rand(size, rank)
             for size in ext_sizes)
+
+# def cpd_normalize(factors, sort=False):
+#     """
+#     Normalize the columns of factors to unit. The norms
+#     are returned in as ndarray
+
+#     :param factors: iterable with factors
+#     :param sort: 
+#     """
