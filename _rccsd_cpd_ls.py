@@ -1,6 +1,6 @@
 from numpy import einsum
 
-def calculate_energy(h, a):
+def calculate_energy_cpd(h, a):
     tau0 = (
         einsum("ap,ip,oia->po", a.x1, a.x4, h.l.pov)
     )
@@ -43,7 +43,7 @@ def calculate_energy(h, a):
 
     return energy
 
-def calc_residuals(h, a):
+def calc_residuals_cpd(h, a):
     tau0 = (
         einsum("ai,oia->o", a.t1, h.l.pov)
     )

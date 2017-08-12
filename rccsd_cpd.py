@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from tcc.cpd import cpd_initialize, cpd_rebuild
 from tensorly.decomposition import parafac
 
-from tcc._rccsd_cpd_ls import (calculate_energy, calc_residuals,
+from tcc._rccsd_cpd_ls import (calculate_energy_cpd, calc_residuals_cpd,
                                calc_r2dr2dx)
 
 class RCCSD_CPD_LS_T(CC):
@@ -106,14 +106,14 @@ class RCCSD_CPD_LS_T(CC):
         Calculate RCCSD energy
         Automatically generated
         """
-        energy = calculate_energy(h, a)
+        energy = calculate_energy_cpd(h, a)
         return energy
 
     def calc_residuals(self, h, a):
         """
         Calculates CC residuals for CC equations
         """
-        rt1, rt2 = calc_residuals(h, a)
+        rt1, rt2 = calc_residuals_cpd(h, a)
         return self.types.RESIDUALS_TYPE(rt1, rt2)
 
     def solve_amps(self, h, a, g):
@@ -143,6 +143,30 @@ class RCCSD_CPD_LS_T(CC):
                 - cpd_rebuild((a.x1, a.x2, a.x3, a.x4)).transpose([0, 1, 3, 2])
             ) / cc_denom(h.f, 4, 'dir', 'full')
         )
+
+
+class RCCSD_CPD_LS_T_HUB(RCCSD_CPD_LS_T):
+    """
+    This class implements classic RCCSD method
+    with CPD decomposed amplitudes for Hubbard hamiltonian,
+    where we calculate full residuals as in normal RCCSD,
+    but taking advantage of the structure of T2.
+    We then calculate CPD of T2 as a single
+    shot ALS.
+
+    Interaction is RI decomposed, T2 amplitudes are abij order.
+    """
+    @property
+    def method_name(self):
+        return 'RCCSD_CPD_LS_T_HUB'
+
+    def create_ham(self):
+        """
+        Create full Hamiltonian (in core)
+        """
+        from tcc.interaction import HAM_SPINLESS_RI_CORE_HUBBARD
+        return HAM_SPINLESS_RI_CORE_HUBBARD(self)
+
 
 class RCCSD_CPD_LS_R2(CC):
     """
@@ -232,7 +256,7 @@ class RCCSD_CPD_LS_R2(CC):
         """
         Calculates CC residuals for CC equations
         """
-        rt1, rt2 = calc_residuals(h, a)
+        rt1, rt2 = calc_residuals_cpd(h, a)
         rx1, rx2, rx3, rx4 = calc_r2dr2dx(h, a, rt2)
 
         return self.types.RESIDUALS_TYPE(rt1, rx1, rx2,
@@ -243,7 +267,7 @@ class RCCSD_CPD_LS_R2(CC):
         Calculate RCCSD energy
         Automatically generated
         """
-        energy = calculate_energy(h, a)
+        energy = calculate_energy_cpd(h, a)
         return energy
 
     def solve_amps(self, h, a, g):
@@ -280,7 +304,7 @@ class RCCSD_CPD_LS_R2_W(RCCSD_CPD_LS_R2):
         """
         Calculates CC residuals for CC equations
         """
-        rt1, rt2 = calc_residuals(h, a)
+        rt1, rt2 = calc_residuals_cpd(h, a)
         d2squared = cc_denom(h.f, 4, 'dir', 'full')**2
         rt2 = rt2 * d2squared
         rx1, rx2, rx3, rx4 = calc_r2dr2dx(h, a, rt2)
@@ -321,11 +345,33 @@ def test_cc():   # pragma: nocover
     converged2, energy2, amps2 = classic_solver(
         cc2, max_cycle=10)
 
-    converged3, energy3, amps3 = root_solver(
-        cc3, amps=amps1)
+    # converged3, energy3, amps3 = root_solver(
+    #     cc3, amps=amps1)
 
-    converged4, energy4, amps4 = root_solver(
-        cc4, amps=amps1)
+    # converged4, energy4, amps4 = root_solver(
+    #     cc4, amps=amps1)
+
+
+def test_hubbard():   # pragma: nocover
+    from pyscf import scf
+    from tcc.hubbard import hubbard_from_scf
+    rhf = hubbard_from_scf(scf.RHF, 6, 6, 3, 'y')
+    rhf.damp = -4.0
+    rhf.scf()
+
+    from tcc.cc_solvers import (classic_solver, root_solver)
+    from tcc.rccsd_mul import RCCSD_MUL_RI_HUB
+    cc1 = RCCSD_MUL_RI_HUB(rhf)
+    cc2 = RCCSD_CPD_LS_T_HUB(rhf, rankt=25)
+
+    converged1, energy1, amps1 = classic_solver(
+        cc1, lam=5, max_cycle=10)
+
+    converged2, energy2, amps2 = classic_solver(
+        cc2, lam=5, conv_tol_energy=1e-8, max_cycle=500)
+
+    # converged3, energy3, amps3 = root_solver(
+    #     cc2)
 
 if __name__ == '__main__':
-    test_cc()
+    test_hubbard()

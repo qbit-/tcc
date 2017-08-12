@@ -1499,7 +1499,6 @@ def test_cc():  # pragma: nocover
 
 
 def test_cc_hubbard_ri():   # pragma: nocover
-    from pyscf import gto
     from pyscf import scf
     from tcc.hubbard import hubbard_from_scf
     rhf = hubbard_from_scf(scf.RHF, 22, 22, 3, 'y')
