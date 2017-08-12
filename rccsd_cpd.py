@@ -4,12 +4,11 @@ from tcc.cc_solvers import CC
 from tcc.denom import cc_denom
 from collections import namedtuple
 from types import SimpleNamespace
-from tcc.utils import cpd_initialize, cpd_rebuild
+from tcc.cpd import cpd_initialize, cpd_rebuild
 from tensorly.decomposition import parafac
 
 from tcc._rccsd_cpd_ls import (calculate_energy, calc_residuals,
                                calc_r2dr2dx)
-
 
 class RCCSD_CPD_LS_T(CC):
     """
@@ -261,6 +260,33 @@ class RCCSD_CPD_LS_R2(CC):
         """
         raise NotImplementedError
 
+class RCCSD_CPD_LS_R2_W(RCCSD_CPD_LS_R2):
+    """
+    This class implements classic RCCSD method
+    with CPD decomposed amplitudes, where we attempt to
+    minimize doubles residuals in a least squares sense with
+    respect to factors in the CPD decomposition of T2.
+    The difference is that we weight each residual with an
+    inverse of the CC denominator
+    D^-1_{abij} = 1 / (f_a + f_b - f_i - f_j)
+
+    Interaction is RI decomposed, T2 amplitudes are abij order.
+    """
+    @property
+    def method_name(self):
+        return 'RCCSD_CPD_LS_R2_W'
+
+    def calc_residuals(self, h, a):
+        """
+        Calculates CC residuals for CC equations
+        """
+        rt1, rt2 = calc_residuals(h, a)
+        d2squared = cc_denom(h.f, 4, 'dir', 'full')**2
+        rt2 = rt2 * d2squared
+        rx1, rx2, rx3, rx4 = calc_r2dr2dx(h, a, rt2)
+
+        return self.types.RESIDUALS_TYPE(rt1, rx1, rx2,
+                                         rx3, rx4)
 
 def test_cc():   # pragma: nocover
     from pyscf import gto
@@ -280,20 +306,26 @@ def test_cc():   # pragma: nocover
     from tcc.rccsd_mul import RCCSD_MUL_RI
     from tcc.rccsd_cpd import RCCSD_CPD_LS_T
     from tcc.rccsd_cpd import RCCSD_CPD_LS_R2
-    from tcc.cc_solvers import classic_solver, root_solver
+    from tcc.rccsd_cpd import RCCSD_CPD_LS_R2_W
+    from tcc.cc_solvers import (residual_diis_solver,
+                                classic_solver, root_solver)
 
     cc1 = RCCSD_CPD_LS_T(rhf, rankt=20)
     cc2 = RCCSD_MUL_RI(rhf)
     cc3 = RCCSD_CPD_LS_R2(rhf, rankt=20)
+    cc4 = RCCSD_CPD_LS_R2_W(rhf, rankt=20)
 
     converged1, energy1, amps1 = classic_solver(
-        cc1, max_cycle=10)
+        cc1, max_cycle=150)
 
     converged2, energy2, amps2 = classic_solver(
         cc2, max_cycle=10)
 
     converged3, energy3, amps3 = root_solver(
         cc3, amps=amps1)
+
+    converged4, energy4, amps4 = root_solver(
+        cc4, amps=amps1)
 
 if __name__ == '__main__':
     test_cc()

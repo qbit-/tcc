@@ -101,7 +101,7 @@ def _construct_cc_denom_cpd(fock_diags, ordering, epsilon=1e-12):
     :param epsilon: accuracy of quadrature (default: 1e-10)
     :rtype: tuple of CPD factors of CC denominator tensor
 
-    >>> from tcc.utils import cpd_rebuild
+    >>> from tcc.cpd import cpd_rebuild
     >>> a, b = np.array([3, 10]), np.array([-1, -2])
     >>> f = (a,)*2 +(b,)*2
     >>> c = _construct_cc_denom_full(f, 'mul')
@@ -121,7 +121,7 @@ def _construct_cc_denom_cpd(fock_diags, ordering, epsilon=1e-12):
     npair = ndim // 2
 
     sorted_vecs = tuple(sorted(vec) for vec in fock_diags)
-        
+
     # This check is not perfect, as accidential degeneracy may still happen?
     min_spreads = [sorted_vecs[ii][0] - sorted_vecs[ii+npair][-1] for ii in
                     range(npair)]
