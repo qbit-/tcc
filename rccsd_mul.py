@@ -1437,9 +1437,7 @@ class RCCSD_MUL_RI(RCCSD_MUL):
 
 class RCCSD_MUL_RI_HUB(RCCSD_MUL_RI):
     """
-    This class implements CCSD RI for Hubbard hamiltonian,
-    as it may be not easy to feed a decomposed hamiltonian to
-    pyscf directly
+    This class implements CCSD RI for Hubbard hamiltonian.
     """
 
     @property
