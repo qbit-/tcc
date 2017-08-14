@@ -109,6 +109,8 @@ def classic_solver(cc, amps=None, max_cycle=50,
     :param verbose: verbosity level
     :rtype: converged, energy, amplitudes
     """
+    div_tol_energy = 1e20
+
     if max_memory is None:
         max_memory = cc.max_memory
 
@@ -151,6 +153,9 @@ def classic_solver(cc, amps=None, max_cycle=50,
         if abs(new_energy - energy) < conv_tol_energy:
             cc._converged = True
             break
+        elif abs(new_energy - energy) > div_tol_energy:
+            cc._converged = False
+            break
         if np.max(np.abs(norm_diff_amps)) < conv_tol_amps:
             cc._converged = True
             break
@@ -176,10 +181,13 @@ def damp_amplitudes(cc, amps, amps_old, lam):
     :param amps_old:  amplitudes container
     :rtype: amplitudes container
     """
-    return cc.types.AMPLITUDES_TYPE(*(
-        amps[ii] / lam + (lam - 1) / lam * amps_old[ii]
-        for ii in range(len(amps))
-    ))
+    if hasattr(cc, 'damp_amplitudes'):
+        return cc.damp_amplitudes(amps, amps_old, lam)
+    else:
+        return cc.types.AMPLITUDES_TYPE(*(
+            amps[ii] / lam + (lam - 1) / lam * amps_old[ii]
+            for ii in range(len(amps))
+        ))
 
 
 def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,

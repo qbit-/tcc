@@ -189,6 +189,68 @@ class HAM_SPINLESS_RI_CORE:
         log.timer('CCSD integral transformation', *cput0)
 
 
+class HAM_SPINLESS_FULL_CORE_HUBBARD:
+    """
+    Creates real full Hubbard interaction in MO basis
+    """
+
+    def __init__(self, cc, mos=None):
+        cput0 = (time.clock(), time.time())
+        log = logger.Logger(cc.stdout, cc.verbose)
+
+        # Get sizes
+        if mos is None:
+            self.mos = cc.mos
+        else:
+            self.mos = mos
+
+        nocc = self.mos.nocc
+        nmo = self.mos.nmo
+        nao = self.mos.mo_coeff.shape[0]
+
+        # Add Fock matrix
+        self.f = _assemble_fock(cc, mos)
+
+        # Build Hubbard integrals analytically
+
+        if hasattr(cc._scf, '_hubbard_interaction'):
+            u = cc._scf._hubbard_interaction
+
+            VFull = namedtuple('VFull', ('oooo', 'ooov', 'oovv', 'ovov',
+                                         'voov', 'ovvv', 'vvvv', 'ovvo',
+                                         'vvov', 'vvoo', 'ovoo', 'oovo',
+                                         'vvvo'))
+            eri1 = np.zeros((nao, nao, nao, nao))
+            for i in range(nao):
+                    eri1[i, i, i, i] = u
+            eri1 = ao2mo.restore(8, eri1, nao)
+            eri1 = ao2mo.incore.full(eri1, self.mos.mo_coeff, compact=False)
+            eri1 = ao2mo.restore(1, eri1, nmo)
+
+            # FIXME: need to clean up interaction to having only 7 partitions.
+            # FIXME: this will involve fixing rccsd.py
+            # Restore first compression over symmetric indices
+            self.v = VFull(oooo=eri1[:nocc, :nocc, :nocc, :nocc],
+                           ooov=eri1[:nocc, :nocc, :nocc, nocc:],
+                           oovv=eri1[:nocc, :nocc, nocc:, nocc:],
+                           ovov=eri1[:nocc, nocc:, :nocc, nocc:],
+                           voov=eri1[nocc:, :nocc, :nocc, nocc:],
+                           ovvv=eri1[:nocc, nocc:, nocc:, nocc:],
+                           vvvv=eri1[nocc:, nocc:, nocc:, nocc:],
+                           ovvo=eri1[:nocc, nocc:, nocc:, :nocc],
+                           vvov=eri1[nocc:, nocc:, :nocc, nocc:],
+                           vvoo=eri1[nocc:, nocc:, :nocc, :nocc],
+                           ovoo=eri1[:nocc, nocc:, :nocc, :nocc],
+                           oovo=eri1[:nocc, :nocc, nocc:, :nocc],
+                           vvvo=eri1[nocc:, nocc:, nocc:, :nocc]
+                           )
+
+        else:
+            raise ValueError('SCF object did not supply Hubbard interaction')
+
+        log.timer('CCSD integral transformation', *cput0)
+
+
 class HAM_SPINLESS_RI_CORE_HUBBARD:
     """
     Creates RI decomposed Hubbard hamiltonian,
