@@ -14,6 +14,8 @@ def cpd_rebuild(factors):
     >>> np.allclose(sum(cpd_rebuild((a,b,c))[:,:,1], 1), ref)
     True
     """
+    raise NotImplementedError('There is a bug here.'
+                              ' This function does not agree with kruskal_to_tensor')
     N = len(factors)
     tensor_shape = tuple(factor.shape[0] for factor in factors)
     t = khatrirao(tuple(factors[ii] for ii in range(
@@ -58,11 +60,30 @@ def cpd_initialize(ext_sizes, rank):
     return (np.random.rand(size, rank)
             for size in ext_sizes)
 
-# def cpd_normalize(factors, sort=False):
-#     """
-#     Normalize the columns of factors to unit. The norms
-#     are returned in as ndarray
 
-#     :param factors: iterable with factors
-#     :param sort: 
-#     """
+def cpd_normalize(factors, sort=True):
+    """
+    Normalize the columns of factors to unit. The norms
+    are returned in as ndarray
+
+    :param factors: iterable with factors
+    :param sort: default True
+
+    """
+
+    lam = np.ones(factors[0].shape[1])
+    new_factors = []
+
+    for factor in factors:
+        lam_factor = np.linalg.norm(factor, axis=0)
+        new_factors.append(factor / lam_factor)
+        lam = lam * lam_factor
+
+    if sort:
+        order = np.argsort(lam)[::-1]
+        lam = lam[order]
+
+        for idx, factor in enumerate(new_factors):
+            new_factors[idx] = factor[:, order]
+
+    return lam, tuple(new_factors)

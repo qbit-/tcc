@@ -331,7 +331,7 @@ def test_hubbard_iterations():
     from pyscf import gto
     from pyscf import scf
     from tcc.hubbard import hubbard_from_scf
-    rhf = hubbard_from_scf(scf.RHF, 6, 6, 9, 'y')
+    rhf = hubbard_from_scf(scf.RHF, 6, 6, 3, 'y')
     rhf.damp = -4.0
     rhf.scf()
 
@@ -370,7 +370,7 @@ def test_hubbard_iterations():
     ) 
     # cc = RCCSD_THC_LS_T_HUB(rhf, rankt=3)
     converged, energy, _ = classic_solver(
-        cc, max_cycle=300, lam=10, amps=amps)
+        cc, max_cycle=300, lam=3, amps=amps)
     print(converged, energy)
 
 if __name__ == '__main__':

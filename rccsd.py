@@ -995,6 +995,35 @@ class RCCSD_UNIT(RCCSD):
         )
 
 
+class RCCSD_STEP(RCCSD):
+    """
+    This class implements the solution to CC equations in
+    the way it was done in the
+    "Tensor structures Coupled Cluster" paper
+    This is done primary for test purposes
+    """
+    def update_rhs(self, h, a, r):
+        """
+        Calculates RHS of the fixed point iteration of CC equations
+        """
+        return self.types.RHS_TYPE(
+            g1=r.r1,
+            g2=r.r2
+        )
+
+    def solve_amps(self, h, a, g):
+        """
+        Solving for new T amlitudes using RHS and denominator
+        It is assumed that the order of fields in the RHS
+        is consistent with the order in amplitudes
+        """
+
+        return self.types.AMPLITUDES_TYPE(
+            *(a[ii] + g[ii] * (- cc_denom(h.f, g[ii].ndim, 'dir', 'full'))
+              for ii in range(len(g)))
+        )
+
+
 def test_mp2_energy():  # pragma: nocover
     from pyscf import gto
     from pyscf import scf
@@ -1057,7 +1086,32 @@ def test_cc_hubbard():   # pragma: nocover
         cc, ndiis=5, conv_tol_res=1e-6, lam=5,
         max_cycle=100)
 
+
+def test_cc_step():   # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = [
+        [8, (0., 0., 0.)],
+        [1, (0., -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+
+    mol.basis = {'H': 'sto-3g',
+                 'O': 'sto-3g', }
+    mol.build()
+    rhf = scf.RHF(mol)
+    # rhf = scf.density_fit(scf.RHF(mol))
+    rhf.scf()  # -76.0267656731
+
+    from tcc.cc_solvers import classic_solver
+    from tcc.rccsd import RCCSD_UNIT
+    cc = RCCSD_STEP(rhf)
+
+    converged, energy, _ = classic_solver(
+        cc, conv_tol_energy=-1, conv_tol_amps=1e-8)
+
 if __name__ == '__main__':
     test_mp2_energy()
     test_cc_hubbard()
     test_cc_unitary()
+    test_cc_step()

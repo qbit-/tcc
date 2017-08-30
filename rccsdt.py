@@ -1262,7 +1262,7 @@ class RCCSDT(CC):
         """
         Calculates right hand side of CC equations
         """
-        return self.RHS_TYPE(
+        return self.types.RHS_TYPE(
             g1=r.r1 - a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
             g2=r.r2 - a.t2 / cc_denom(h.f, 4, 'dir', 'full'),
             g3=r.r3 - (a.t3 - a.t3.transpose([2, 1, 0, 3, 4, 5])) /
@@ -1276,15 +1276,34 @@ class RCCSDT(CC):
         is consistent with the order in amplitudes
         """
 
-        return self.types.AMPLITUDES_TYPE(
-            *(g[ii] * (- cc_denom(h.f, g[ii].ndim, 'dir', 'full'))
-              for ii in range(len(g)))
+        O3 = g.g3 / (- cc_denom(h.f, 6, 'dir', 'full'))
+        O3 = 1 / 6 * (O3
+                      - O3.transpose([1, 0, 2, 3, 4, 5])
+                      + O3.transpose([1, 2, 0, 3, 4, 5])
+                      - O3.transpose([2, 1, 0, 3, 4, 5])
+                      + O3.transpose([2, 0, 1, 3, 4, 5])
+                      - O3.transpose([0, 2, 1, 3, 4, 5])
         )
+        O3 = 1 / 6 * (O3
+                      - O3.transpose([0, 1, 2, 4, 3, 5])
+                      + O3.transpose([0, 1, 2, 4, 5, 3])
+                      - O3.transpose([0, 1, 2, 5, 4, 3])
+                      + O3.transpose([0, 1, 2, 5, 3, 4])
+                      - O3.transpose([0, 1, 2, 3, 5, 4])
+        )
+
+        return self.types.AMPLITUDES_TYPE(
+            g[0] * (- cc_denom(h.f, g[0].ndim, 'dir', 'full')),
+            g[1] * (- cc_denom(h.f, g[1].ndim, 'dir', 'full')),
+            1 / 2 * O3
+        )
+
 
 
 def test_cc():   # pragma: nocover
     from pyscf import gto
     from pyscf import scf
+
     mol = gto.Mole()
     mol.atom = [
         [8, (0., 0., 0.)],
@@ -1298,10 +1317,12 @@ def test_cc():   # pragma: nocover
     # rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()  # -76.0267656731
 
-    from tcc.cc_solvers import root_solver
+    from tcc.cc_solvers import root_solver, classic_solver
     from tcc.rccsdt import RCCSDT
     cc = RCCSDT(rhf)
-    converged, energy, _ = root_solver(cc)
+    converged1, energy1, _ = root_solver(cc)
+    converged2, energy2, _ = classic_solver(cc, lam=10)
+
 
 if __name__ == '__main__':
     test_cc()

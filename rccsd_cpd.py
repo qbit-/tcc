@@ -6,7 +6,7 @@ from collections import namedtuple
 from types import SimpleNamespace
 from tcc.cpd import cpd_initialize, cpd_rebuild
 from tensorly.decomposition import parafac
-
+from tensorly.kruskal import kruskal_to_tensor
 from tcc._rccsd_cpd_ls import (calculate_energy_cpd, calc_residuals_cpd,
                                calc_r2dr2dx)
 
@@ -127,7 +127,7 @@ class RCCSD_CPD_LS_T(CC):
         t2_full = (2 * g.gt2 + g.gt2.transpose([0, 1, 3, 2])
                    ) / (- 6) * cc_denom(h.f, 4, 'dir', 'full')
 
-        xs = parafac(t2_full, self.rankt, n_iter_max=3, init='guess',
+        xs = parafac(t2_full, self.rankt, n_iter_max=1, init='guess',
                      guess=[a.x1, a.x2, a.x3, a.x4])
 
         return self.types.AMPLITUDES_TYPE(t1, *xs)
@@ -139,8 +139,8 @@ class RCCSD_CPD_LS_T(CC):
         return self.types.RHS_TYPE(
             gt1=r.rt1 - 2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
             gt2=r.rt2 - 2 * (
-                2 * cpd_rebuild((a.x1, a.x2, a.x3, a.x4))
-                - cpd_rebuild((a.x1, a.x2, a.x3, a.x4)).transpose([0, 1, 3, 2])
+                2 * kruskal_to_tensor((a.x1, a.x2, a.x3, a.x4))
+                - kruskal_to_tensor((a.x1, a.x2, a.x3, a.x4)).transpose([0, 1, 3, 2])
             ) / cc_denom(h.f, 4, 'dir', 'full')
         )
 
@@ -361,8 +361,10 @@ def test_hubbard():   # pragma: nocover
 
     from tcc.cc_solvers import (classic_solver, root_solver)
     from tcc.rccsd_mul import RCCSD_MUL_RI_HUB
+    from tcc.rccsd_cpd import RCCSD_CPD_LS_T_HUB
+
     cc1 = RCCSD_MUL_RI_HUB(rhf)
-    cc2 = RCCSD_CPD_LS_T_HUB(rhf, rankt=25)
+    cc2 = RCCSD_CPD_LS_T_HUB(rhf, rankt=1)
 
     converged1, energy1, amps1 = classic_solver(
         cc1, lam=5, max_cycle=10)
@@ -371,7 +373,7 @@ def test_hubbard():   # pragma: nocover
         cc2, lam=5, conv_tol_energy=1e-8, max_cycle=500)
 
     # converged3, energy3, amps3 = root_solver(
-    #     cc2)
+    #      cc2)   # does not work
 
 if __name__ == '__main__':
     test_hubbard()

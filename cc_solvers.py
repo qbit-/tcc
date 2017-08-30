@@ -78,12 +78,17 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
         if abs(energy - old_energy) < conv_tol_energy:
             cc._converged = True
-            break
         if np.max(np.abs(norm_res)) < conv_tol_res:
             cc._converged = True
-            break
         old_amps = amps
         old_energy = energy
+        if cc._converged:
+            log.note('Converged in %d steps. E(%s) = %.6e'
+                     ' dE = %.6e  max(|r|) = %.6e (r%d)',
+                     istep, cc.method_name,
+                     energy, energy - old_energy,
+                     np.max(np.abs(norm_res)), np.argmax(np.abs(norm_res)))
+            break
 
     cc._energy_corr = energy
     cc._energy_tot = cc._scf.energy_tot() + energy
@@ -152,16 +157,23 @@ def classic_solver(cc, amps=None, max_cycle=50,
 
         if abs(new_energy - energy) < conv_tol_energy:
             cc._converged = True
-            break
-        elif abs(new_energy - energy) > div_tol_energy:
-            cc._converged = False
-            break
         if np.max(np.abs(norm_diff_amps)) < conv_tol_amps:
             cc._converged = True
+        if abs(new_energy - energy) > div_tol_energy:
+            cc._converged = False
+            energy = np.nan
             break
 
         energy = new_energy
         amps = new_amps
+        if cc._converged:
+            log.note('Converged in %d steps E(%s) = %.6e'
+                     ' dE = %.6e  max(|T|) = %.6e (T%d)',
+                     istep, cc.method_name,
+                     new_energy, new_energy - energy,
+                     np.max(np.abs(norm_diff_amps)),
+                     np.argmax(np.abs(norm_diff_amps)))
+            break
 
     cc._energy_corr = energy
     cc._energy_tot = cc._scf.energy_tot() + energy
