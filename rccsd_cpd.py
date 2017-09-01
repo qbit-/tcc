@@ -9,6 +9,7 @@ from tensorly.decomposition import parafac
 from tensorly.kruskal import kruskal_to_tensor
 from tcc._rccsd_cpd_ls import (calculate_energy_cpd, calc_residuals_cpd,
                                calc_r2dr2dx)
+from tcc.cpd import cpd_symmetrize
 
 class RCCSD_CPD_LS_T(CC):
     """
@@ -97,9 +98,11 @@ class RCCSD_CPD_LS_T(CC):
         v_vovo = einsum("pia,pjb->aibj", ham.l.pov, ham.l.pov).conj()
 
         t2_full = 2 * v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
-        t2_cpd = parafac(t2_full, self.rankt)
+        xs = parafac(t2_full, self.rankt)
 
-        return self.types.AMPLITUDES_TYPE(t1, *t2_cpd)
+        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2) : ('ident',)})
+
+        return self.types.AMPLITUDES_TYPE(t1, *xs)
 
     def calculate_energy(self, h, a):
         """
@@ -127,8 +130,16 @@ class RCCSD_CPD_LS_T(CC):
         t2_full = (2 * g.gt2 + g.gt2.transpose([0, 1, 3, 2])
                    ) / (- 6) * cc_denom(h.f, 4, 'dir', 'full')
 
-        xs = parafac(t2_full, self.rankt, n_iter_max=1, init='guess',
-                     guess=[a.x1, a.x2, a.x3, a.x4])
+        rankt = self.rankt
+        xs = parafac(t2_full, rankt, n_iter_max=1, init='guess',
+                     guess=[a.x1[:, :rankt], a.x2[:, :rankt],
+                            a.x3[:, :rankt], a.x4[:, :rankt]])
+
+        # xs = parafac(t2_full, rankt, n_iter_max=1, init='guess',
+        #              guess=[2 * a.x1[:, :rankt], 2 * a.x2[:, :rankt],
+        #                     2 * a.x3[:, :rankt], 2 * a.x4[:, :rankt]])
+
+        # xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2) : ('ident',)})
 
         return self.types.AMPLITUDES_TYPE(t1, *xs)
 
@@ -355,7 +366,7 @@ def test_cc():   # pragma: nocover
 def test_hubbard():   # pragma: nocover
     from pyscf import scf
     from tcc.hubbard import hubbard_from_scf
-    rhf = hubbard_from_scf(scf.RHF, 6, 6, 3, 'y')
+    rhf = hubbard_from_scf(scf.RHF, 6, 6, 1, 'y')
     rhf.damp = -4.0
     rhf.scf()
 
@@ -364,13 +375,13 @@ def test_hubbard():   # pragma: nocover
     from tcc.rccsd_cpd import RCCSD_CPD_LS_T_HUB
 
     cc1 = RCCSD_MUL_RI_HUB(rhf)
-    cc2 = RCCSD_CPD_LS_T_HUB(rhf, rankt=1)
+    cc2 = RCCSD_CPD_LS_T_HUB(rhf, rankt=12)
 
     converged1, energy1, amps1 = classic_solver(
         cc1, lam=5, max_cycle=10)
 
     converged2, energy2, amps2 = classic_solver(
-        cc2, lam=5, conv_tol_energy=1e-8, max_cycle=500)
+        cc2, lam=1, conv_tol_energy=1e-8, max_cycle=500)
 
     # converged3, energy3, amps3 = root_solver(
     #      cc2)   # does not work

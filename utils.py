@@ -28,24 +28,10 @@ def khatrirao(matrices, skip_matrix=None, reverse=False):
         where ``prod(n_i) = prod([m.shape[0] for m in matrices])``
         i.e. the product of the number of rows of all the matrices in the product.
 
-    Notes
-    -----
-    Mathematically:
-
-    .. math::
-         \\text{If every matrix } U_k \\text{ is of size } (I_k \\times R),\\\\
-         \\text{Then } \\left(U_1 \\bigodot \\cdots \\bigodot U_n \\right) \\text{ is of size } (\\prod_{k=1}^n I_k \\times R)
-
-
-    References
-    ----------
-    .. [1] T.G.Kolda and B.W.Bader, "Tensor Decompositions and Applications",
-       SIAM REVIEW, vol. 51, n. 3, pp. 455-500, 2009.
-
     >>> import numpy as np
     >>> a = np.array([[1,3],[2,4]])
     >>> b = np.array([[5,6],[7,8],[9,10]])
-    >>> np.sum(khatrirao((a,b)),1)[2]
+    >>> np.sum(khatrirao((a,b), reverse=True), 1)[2]
     31.0
     """
     if skip_matrix is not None:
@@ -68,7 +54,8 @@ def khatrirao(matrices, skip_matrix=None, reverse=False):
 
     if reverse:
         matrices = matrices[::-1]
-        # Note: we do NOT use .reverse() which would reverse matrices even outside this function
+        # Note: we do NOT use .reverse() which would reverse matrices
+        # even outside this function
 
     start = ord('a')
     common_dim = 'z'
