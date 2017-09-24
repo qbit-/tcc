@@ -6,7 +6,6 @@ from collections import namedtuple
 from types import SimpleNamespace
 from tcc.cpd import cpd_initialize, cpd_rebuild
 from tensorly.decomposition import parafac
-from tensorly.kruskal import kruskal_to_tensor
 from tcc._rccsd_cpd_ls import (calculate_energy_cpd, calc_residuals_cpd,
                                calc_r2dr2dx)
 from tcc.cpd import cpd_symmetrize
@@ -150,8 +149,8 @@ class RCCSD_CPD_LS_T(CC):
         return self.types.RHS_TYPE(
             gt1=r.rt1 - 2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
             gt2=r.rt2 - 2 * (
-                2 * kruskal_to_tensor((a.x1, a.x2, a.x3, a.x4))
-                - kruskal_to_tensor((a.x1, a.x2, a.x3, a.x4)).transpose([0, 1, 3, 2])
+                2 * cpd_rebuild((a.x1, a.x2, a.x3, a.x4))
+                - cpd_rebuild((a.x1, a.x2, a.x3, a.x4)).transpose([0, 1, 3, 2])
             ) / cc_denom(h.f, 4, 'dir', 'full')
         )
 

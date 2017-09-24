@@ -137,7 +137,8 @@ def ncpd_rebuild(norm_factors):
     return t.reshape(tensor_shape)
 
 
-def cpd_contract_free_cpd(factors_top, factors_bottom, conjugate=False):
+def cpd_contract_free_cpd(factors_top, factors_bottom,
+                          conjugate=False, exclude_mode=None):
       """
       Contract "external" indices of two CPD decomposed tensors
       :param factors_top: iterable with CPD decomposition
@@ -145,7 +146,9 @@ def cpd_contract_free_cpd(factors_top, factors_bottom, conjugate=False):
       :param factors_bottom: iterable with CPD decomposition
                           of the bottom (right) tensor
       :param conjugate: conjugate the top (left) factor (default: False)
-
+      :param skip_factor: int, default None
+                skip the factor number skip_factor 
+      
       >>> import numpy as np
       >>> k1 = cpd_initialize([3,3,4], 3)
       >>> k2 = cpd_initialize([3,3,4], 3)
@@ -159,18 +162,28 @@ def cpd_contract_free_cpd(factors_top, factors_bottom, conjugate=False):
       """
 
       from functools import reduce
+      from itertools import izip
+
+      if skip_factor is not None:
+          factors_top = [factors_top[ii]
+                         for ii in range(len(factors_top))
+                         if ii != skip_factor]
+          factors_bottom = [factors_bottom[i]
+                            for ii in range(len(factors_bottom))
+                            if ii != skip_factor]
 
       if conjugate:
           factors_top = [factor.conjugate() for factor in factors_top]
-
+          
       s = reduce(lambda x, y: x * y,
                  map(lambda x: x[0].T.dot(x[1]),
-                     zip(factors_top, factors_bottom)))
+                     izip(factors_top, factors_bottom)))
 
       return s
 
 
-def ncpd_contract_free_ncpd(factors_top, factors_bottom, conjugate=False):
+def ncpd_contract_free_ncpd(factors_top, factors_bottom,
+                            conjugate=False, skip_factor=None):
       """
       Contract "external" indices of two nCPD decomposed tensors
       :param factors_top: iterable with nCPD decomposition
@@ -178,6 +191,8 @@ def ncpd_contract_free_ncpd(factors_top, factors_bottom, conjugate=False):
       :param factors_bottom: iterable with nCPD decomposition
                           of the bottom (right) tensor
       :param conjugate: conjugate the top (left) factor (default: False)
+      :param skip_factor: int, default None
+                skip the factor number skip_factor 
 
       >>> import numpy as np
       >>> k1 = cpd_initialize([3,3,4], 3)
@@ -193,8 +208,12 @@ def ncpd_contract_free_ncpd(factors_top, factors_bottom, conjugate=False):
 
       s = cpd_contract_free_cpd(factors_top[1:],
                                 factors_bottom[1:],
-                                conjugate)
-      return s * (factors_top[0][np.newaxis].T * factors_bottom[0])
+                                conjugate, skip_factor)
+
+      lam_top = factors_top[0]
+      lam_bottom = factors_bottom[0]
+      
+      return s * (lam_top[np.newaxis].T * lam_bottom)
 
 
 def cpd_symmetrize(factors, permdict, adjust_scale=True):
@@ -275,3 +294,7 @@ def ncpd_symmetrize(norm_factors, permdict):
     new_factors = cpd_symmetrize(factors, permdict, adjust_scale=False)
     
     return [new_lam, ] + new_factors
+
+
+
+
