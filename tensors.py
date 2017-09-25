@@ -1,7 +1,7 @@
 """ """
-from collections import OrderedDict
 import numpy as np
 from operator import add, sub, mul, truediv
+from collections import Mapping
 
 
 class Tensors(dict):
@@ -19,7 +19,7 @@ class Tensors(dict):
         return '{0}({1})'.format(self.__class__.__name__, dict.__repr__(self))
 
     def map(self, func):
-        """Map the function to the tensors with structure kept"""
+        """Map an unary function to the tensors with structure kept"""
         res = Tensors()
         for k, v in self.items():
             res[k] = func(v) if not isinstance(v, Tensors) else v.map(func)
@@ -67,10 +67,6 @@ class Tensors(dict):
 
     # Specific math operations.
 
-    def sqrt(self):
-        """Take the square root of the elements."""
-        return self.map(np.sqrt)
-
     def __add__(self, other):
         """Addition with another quantity."""
         return self._map_binary(other, add)
@@ -94,15 +90,15 @@ class Tensors(dict):
         else:
             return self.map(lambda x: pow(x, other, modulo))
 
-    # Flattening and unflattening
+    # Flattening to a BIG vector
 
     def struct(self):
         """Returns structure of the container"""
         return self.map(np.shape)
 
-    def flatten(self):
+    def to_vector(self):
         """Returns contents of the container reshaped to a vector"""
-        return flatten(self)
+        return to_vector(self)
 
     def update_from_vector(self, vec):
         """Updates the contents of the container from a vector"""
@@ -112,6 +108,15 @@ class Tensors(dict):
             raise ValueError(
                 'Vector length mismatch: expected {}, got {}'.format(
                     offset, len(vec)))
+
+    def flatten(self):
+        """Alias to to_vector() method"""
+        return self.to_vector()
+
+    # Flattening keys and converting to a shallow dict (see to_shallow_dict_items)
+    def to_shallow_dict(self, join=lambda a, b:a+'.'+b):
+        """Flatten nested dictionary and merge keys"""
+        return dict(to_shallow_dict_items(self, join))
 
         
 def from_vector(vec, struct):
@@ -162,12 +167,12 @@ def update_from_vector(old, vec, struct):
     return offset
     
 
-def flatten(tensors):
+def to_vector(tensors):
     """Returns a copy of a flattened container with all contents flattened"""
     flattened = np.hstack((
         np.reshape(tensors[k], -1)
         if not isinstance(tensors[k], Tensors)
-        else flatten(tensors[k])
+        else to_vector(tensors[k])
         for k in sorted(tensors.keys())
     ))
     return flattened
@@ -194,10 +199,36 @@ def to_dict(x):
     else:
         return x
 
+            
+_FLAG_FIRST = object()
+def to_shallow_dict_items(d, join=add, lift=lambda x:x):
+    """Flattens a nested dictionary efficiently. Returns an iterator
+    over (newKey, value) pairs
+    This code was taken from:
+    https://stackoverflow.com/questions/6027558/flatten-nested-python-dictionaries-compressing-keys
+    on 24/09/2017
+    
+    >>> testData = {'a':1, 'b':2, 'c':{'aa':11, 'bb':22, 'cc':{'aaa':111}}}
+    >>> print(dict( to_shallow_dict_items(testData, lift=lambda x:(x,)) ))
+    {('c', 'cc', 'aaa'): 111, ('c', 'bb'): 22, ('b',): 2, ('c', 'aa'): 11, ('a',): 1}
+    >>> print(dict( to_shallow_dict_items(testData, join=lambda a, b:a+'.'+b) ))
+    {'b': 2, 'a': 1, 'c.aa': 11, 'c.bb': 22, 'c.cc.aaa': 111}
+    """
+    results = []
+    def visit(subdict, results, partialKey):
+        for k,v in subdict.items():
+            newKey = lift(k) if partialKey==_FLAG_FIRST else join(partialKey,lift(k))
+            if isinstance(v, Mapping):
+                visit(v, results, newKey)
+            else:
+                results.append((newKey, v))
+    visit(d, results, _FLAG_FIRST)
+    return results
+
 
 if __name__ == '__main__':
     a = Tensors({'s': np.random.rand(2,2), 'd': Tensors({'a': np.ones((2,3)), 'b': np.zeros((2,2))})})
-    k = a.flatten()
+    k = a.to_vector()
     print(k)
     print(k.shape)
     st = a.struct()
@@ -207,5 +238,6 @@ if __name__ == '__main__':
     print(b)
     update_from_vector(a, k, st)
     print(a)
-
+    a.update_from_vector(k)
+    print(a)
     

@@ -3,8 +3,9 @@ import time
 from pyscf.lib import logger
 import numpy as np
 from scipy.optimize import root, minimize
-from tcc.diis import diis_multiple
-
+from .diis import diis_multiple
+import tensors
+from .tensors import Tensors
 
 def residual_diis_solver(cc, amps=None, max_cycle=50,
                          conv_tol_energy=1e-6, conv_tol_res=1e-5,
@@ -47,7 +48,7 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
     for istep in range(max_cycle):
 
         if diis.ready:
-            amps = cc.types.AMPLITUDES_TYPE(*diis.predict())
+            amps = Tensors(diis.predict())
 
         res = cc.calc_residuals(ham, amps)
         rhs = cc.update_rhs(ham, amps, res)
@@ -59,35 +60,36 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
         res = cc.calc_residuals(ham, amps)
         diis.push_predictor(res)
 
-        norm_res = np.array([
-            np.linalg.norm(res[ii]) for ii in range(len(res))
-        ])
+        norm_res = res.map(np.linalg.norm).to_shallow_dict()
+        max_key = max(norm_res.keys(),
+                           key=(lambda x: abs(norm_res[x])))
+        max_val = norm_res[max_key]
 
         energy = cc.calculate_energy(ham, amps)
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
         log.info('istep = %d  E(%s) = %.6e'
-                 ' dE = %.6e  max(|r|) = %.6e (r%d)',
+                 ' dE = %.6e  max(|r|) = %.6e (%s)',
                  istep, cc.method_name,
                  energy, energy - old_energy,
-                 np.max(np.abs(norm_res)), np.argmax(np.abs(norm_res)))
+                 max_val, max_key)
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
-                                  for field_name, val
-                                  in zip(res._fields, norm_res)))
+                                  for field_name, val in norm_res.items()))
+
 
         if abs(energy - old_energy) < conv_tol_energy:
             cc._converged = True
-        if np.max(np.abs(norm_res)) < conv_tol_res:
+        if abs(max_val) < conv_tol_res:
             cc._converged = True
         old_amps = amps
         old_energy = energy
         if cc._converged:
             log.note('Converged in %d steps. E(%s) = %.6e'
-                     ' dE = %.6e  max(|r|) = %.6e (r%d)',
+                     ' dE = %.6e  max(|r|) = %.6e (%s)',
                      istep, cc.method_name,
                      energy, energy - old_energy,
-                     np.max(np.abs(norm_res)), np.argmax(np.abs(norm_res)))
+                     max_val, max_key)
             break
 
     cc._energy_corr = energy
@@ -140,24 +142,24 @@ def classic_solver(cc, amps=None, max_cycle=50,
 
         new_energy = cc.calculate_energy(ham, new_amps)
 
-        norm_diff_amps = [np.linalg.norm(new_amps[ii] - amps[ii])
-                          for ii in range(len(amps))]
+        norm_diff_amps = (new_amps - amps).map(np.linalg.norm).to_shallow_dict()
+        max_key = max(norm_diff_amps.keys(),
+                           key=(lambda x: abs(norm_diff_amps[x])))
+        max_val = norm_diff_amps[max_key]
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
         log.info('istep = %d  E(%s) = %.6e'
-                 ' dE = %.6e  max(|T|) = %.6e (T%d)',
+                 ' dE = %.6e  max(|T|) = %.6e (%s)',
                  istep, cc.method_name,
                  new_energy, new_energy - energy,
-                 np.max(np.abs(norm_diff_amps)),
-                 np.argmax(np.abs(norm_diff_amps)))
+                 max_val, max_key)
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
-                                  for field_name, val in zip(
-            amps._fields, norm_diff_amps)))
+                                  for field_name, val in norm_diff_amps.items()))
 
         if abs(new_energy - energy) < conv_tol_energy:
             cc._converged = True
-        if np.max(np.abs(norm_diff_amps)) < conv_tol_amps:
+        if abs(max_val) < conv_tol_amps:
             cc._converged = True
         if abs(new_energy - energy) > div_tol_energy:
             cc._converged = False
@@ -168,11 +170,11 @@ def classic_solver(cc, amps=None, max_cycle=50,
         amps = new_amps
         if cc._converged:
             log.note('Converged in %d steps E(%s) = %.6e'
-                     ' dE = %.6e  max(|T|) = %.6e (T%d)',
+                     ' dE = %.6e  max(|T|) = %.6e (%s)',
                      istep, cc.method_name,
                      new_energy, new_energy - energy,
-                     np.max(np.abs(norm_diff_amps)),
-                     np.argmax(np.abs(norm_diff_amps)))
+                     max_val,
+                     max_key)
             break
 
     cc._energy_corr = energy
@@ -196,10 +198,7 @@ def damp_amplitudes(cc, amps, amps_old, lam):
     if hasattr(cc, 'damp_amplitudes'):
         return cc.damp_amplitudes(amps, amps_old, lam)
     else:
-        return cc.types.AMPLITUDES_TYPE(*(
-            amps[ii] / lam + (lam - 1) / lam * amps_old[ii]
-            for ii in range(len(amps))
-        ))
+        return amps / lam + amps_old * (lam - 1) / lam
 
 
 def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,
@@ -218,9 +217,6 @@ def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,
     :param verbose: verbosity level
     :rtype: converged, energy, amplitudes
     """
-    from tcc.utils import (merge_np_container,
-                           np_container_structure,
-                           unmerge_np_container)
 
     if max_memory is None:
         max_memory = cc.max_memory
@@ -237,24 +233,21 @@ def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,
     energy = cc.calculate_energy(ham, amps)
     cc._emp2 = energy
 
-    amps_structure = np_container_structure(amps)
+    amps_structure = amps.struct()
 
     def residuals(x):
-        amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
-                                    amps_structure, x)
+        amps.update_from_vector(x)
         res = cc.calc_residuals(ham, amps)
-        return merge_np_container(res)
+        return res.flatten()
 
     istep = 1
 
     def log_residuals(x, res):
         nonlocal istep
         nonlocal cput_cycle
-        energy = cc.calculate_energy(ham,
-                                     unmerge_np_container(
-                                         cc.types.AMPLITUDES_TYPE,
-                                         amps_structure,
-                                         x))
+        energy = cc.calculate_energy(
+            ham, tensors.from_vec(x, amps_structure)
+            )
         log.info('istep = %d  E(%s) = %.6e'
                  ' |T| = %.6e |R| = %.6e',
                  istep, cc.method_name,
@@ -271,15 +264,14 @@ def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,
 
     result = root(
         fun=residuals,
-        x0=merge_np_container(amps),
+        x0=amps.flatten(),
         tol=conv_tol,
         method=method,
         options=options,
         callback=callback
     )
 
-    amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
-                                amps_structure, result.x)
+    amps = tensors.from_vec(result.x, amps_structure)
     converged = result.success
     energy = cc.calculate_energy(ham, amps)
 
@@ -308,9 +300,6 @@ def lagrangian_solver(cc, amps=None, method='L-BFGS-B',
     :param verbose: verbosity level
     :rtype: converged, energy, amplitudes
     """
-    from tcc.utils import (merge_np_container,
-                           np_container_structure,
-                           unmerge_np_container)
 
     if max_memory is None:
         max_memory = cc.max_memory
@@ -327,22 +316,19 @@ def lagrangian_solver(cc, amps=None, method='L-BFGS-B',
     energy = cc.calculate_energy(ham, amps)
     cc._emp2 = energy
 
-    amps_structure = np_container_structure(amps)
+    amps_structure = amps.struct()
 
     def gradient(x):
-        amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
-                                    amps_structure, x)
+        amps = tensors.from_vec(x, amps_structure)
         res = cc.calc_residuals(ham, amps)
-        return merge_np_container(res)
+        return res.flatten()
 
     def constraint(x):
-        amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
-                                    amps_structure, x)
+        amps = tensors.from_vec(x, amps_structure)
         return cc.calc_lagrangian(ham, amps)
 
     def gradient_constraint(x):
-        amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
-                                    amps_structure, x)
+        amps = tensors.from_vec(x, amps_structure)
         return cc.calc_lagrangian(ham, amps)
 
     istep = 1
@@ -350,11 +336,8 @@ def lagrangian_solver(cc, amps=None, method='L-BFGS-B',
     def log_residuals(x):
         nonlocal istep
         nonlocal cput_cycle
-        energy = cc.calculate_energy(ham,
-                                     unmerge_np_container(
-                                         cc.types.AMPLITUDES_TYPE,
-                                         amps_structure,
-                                         x))
+        energy = cc.calculate_energy(
+            ham, tensors.from_vec(x, amps_structure))
         log.info('istep = %d  E(%s) = %.6e'
                  ' |T| = %.6e',
                  istep, cc.method_name,
@@ -370,15 +353,14 @@ def lagrangian_solver(cc, amps=None, method='L-BFGS-B',
 
     result = minimize(
         fun=lagrangian,
-        x0=merge_np_container(amps),
+        x0=amps.flatten(),
         tol=conv_tol,
         method=method,
         options=options,
         callback=callback
     )
 
-    amps = unmerge_np_container(cc.types.AMPLITUDES_TYPE,
-                                amps_structure, result.x)
+    amps = tensors.from_vec(result.x, amps_structure)
     converged = result.success
     energy = cc.calculate_energy(ham, amps)
 
@@ -462,23 +444,19 @@ class CC(abc.ABC):
     def energy_tot(self):
         return self._energy_tot
 
-    @abc.abstractproperty
+    @property
     def mos(self):
         """
         Returns a constructor for a MOS object
         """
-
-    @abc.abstractproperty
-    def types(self):
-        """
-        Contains type definitions for parameters of the method
-        """
-
-    @abc.abstractproperty
+        return self._mos
+        
+    @property
     def method_name(self):
         """
         Returns the name of a prticular method
         """
+        return self.__class__.__name__
 
     @abc.abstractclassmethod
     def create_ham(self):
