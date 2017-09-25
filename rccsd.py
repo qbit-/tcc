@@ -74,6 +74,7 @@ class RCCSD(CC):
         is consistent with the order in amplitudes
         """
 
+        raise NotIMplemented('Bug is likely here')
         multiply_by_inverse = lambda x: x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
         return g.map(multiply_by_inverse)
 
@@ -84,6 +85,15 @@ class RCCSD(CC):
 
         divide_by_inverse = lambda x: x / (- cc_denom(h.f, x.ndim, 'dir', 'full'))      
         return (r - a).map(divide_by_inverse)
+
+
+    def calculate_update(self, h, a):
+        """
+        Solving for new T amlitudes using RHS and denominator
+        """
+        r = self.calc_residuals(h, a)
+        multiply_by_inverse = lambda x: x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
+        return r.map(multiply_by_inverse)
 
 
 class RCCSD_UNIT(RCCSD):
@@ -141,28 +151,6 @@ class RCCSD_UNIT(RCCSD):
             t2=r.t2 - 2 * (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])
                            ) / cc_denom(h.f, 4, 'dir', 'full')
         )
-
-
-class RCCSD_STEP(RCCSD):
-    """
-    This class implements the solution to CC equations in
-    the way it was done in the
-    "Tensor structures Coupled Cluster" paper
-    This is done primary for test purposes
-    """
-    def update_rhs(self, h, a, r):
-        """
-        Calculates RHS of the fixed point iteration
-        """
-        return r
-
-    def solve_amps(self, h, a, g):
-        """
-        Solving for new T amlitudes using RHS and denominator
-        """
-
-        multiply_by_inverse = lambda x: x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
-        return a + g.map(multiply_by_inverse)
 
 
 def test_mp2_energy():  # pragma: nocover
@@ -246,15 +234,16 @@ def test_cc_step():   # pragma: nocover
     # rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()  # -76.0267656731
 
-    from tcc.cc_solvers import classic_solver
-    from tcc.rccsd import RCCSD_STEP
-    cc = RCCSD_STEP(rhf)
+    from tcc.cc_solvers import residual_diis_solver
+    from tcc.cc_solvers import step_solver, classic_solver
+    from tcc.rccsd import RCCSD
+    cc = RCCSD(rhf)
 
-    converged, energy, _ = classic_solver(
-        cc, conv_tol_energy=-1, conv_tol_amps=1e-8)
+    converged, energy, _ = step_solver(
+        cc, conv_tol_energy=-1, use_optimizer='momentum', optimizer_kwargs={'beta' : 0.85}, alpha=0.1, max_cycle=200)
 
 if __name__ == '__main__':
-    test_mp2_energy()
-    test_cc_hubbard()
-    test_cc_unitary()
+    # test_mp2_energy()
+    # test_cc_hubbard()
+    # test_cc_unitary()
     test_cc_step()
