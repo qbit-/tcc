@@ -7,6 +7,7 @@ from tcc.diis import diis_multiple
 import tcc.tensors as tensors
 from tcc.tensors import Tensors
 
+
 def residual_diis_solver(cc, amps=None, max_cycle=50,
                          conv_tol_energy=1e-6, conv_tol_res=1e-5,
                          lam=1, ndiis=5,
@@ -62,7 +63,7 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
         norm_res = res.map(np.linalg.norm).to_shallow_dict()
         max_key = max(norm_res.keys(),
-                           key=(lambda x: abs(norm_res[x])))
+                      key=(lambda x: abs(norm_res[x])))
         max_val = norm_res[max_key]
 
         energy = cc.calculate_energy(ham, amps)
@@ -76,7 +77,6 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val in norm_res.items()))
-
 
         if abs(energy - old_energy) < conv_tol_energy:
             cc._converged = True
@@ -142,9 +142,10 @@ def classic_solver(cc, amps=None, max_cycle=50,
 
         new_energy = cc.calculate_energy(ham, new_amps)
 
-        norm_diff_amps = (new_amps - amps).map(np.linalg.norm).to_shallow_dict()
+        norm_diff_amps = (
+            new_amps - amps).map(np.linalg.norm).to_shallow_dict()
         max_key = max(norm_diff_amps.keys(),
-                           key=(lambda x: abs(norm_diff_amps[x])))
+                      key=(lambda x: abs(norm_diff_amps[x])))
         max_val = norm_diff_amps[max_key]
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
@@ -247,7 +248,7 @@ def root_solver(cc, amps=None, method='krylov', options=None, conv_tol=1e-5,
         nonlocal cput_cycle
         energy = cc.calculate_energy(
             ham, tensors.from_vec(x, amps_structure)
-            )
+        )
         log.info('istep = %d  E(%s) = %.6e'
                  ' |T| = %.6e |R| = %.6e',
                  istep, cc.method_name,
@@ -417,13 +418,13 @@ def step_solver(cc, amps=None, max_cycle=50,
 
     for istep in range(max_cycle):
         step = cc.calculate_update(ham, amps)
-        new_amps = amps - optimizer.update(step) * alpha
+        new_amps = amps + optimizer.update(step)
 
         new_energy = cc.calculate_energy(ham, new_amps)
 
         norm_step = step.map(np.linalg.norm).to_shallow_dict()
         max_key = max(norm_step.keys(),
-                           key=(lambda x: abs(norm_step[x])))
+                      key=(lambda x: abs(norm_step[x])))
         max_val = norm_step[max_key]
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
@@ -463,7 +464,7 @@ def step_solver(cc, amps=None, max_cycle=50,
 
     return cc._converged, energy, amps
 
-    
+
 def concreter(abclass):
     """
     >>> import abc
@@ -543,7 +544,7 @@ class CC(abc.ABC):
         Returns a constructor for a MOS object
         """
         return self._mos
-        
+
     @property
     def method_name(self):
         """

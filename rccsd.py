@@ -8,6 +8,8 @@ from ._rccsd import (_rccsd_calculate_energy,
 
 from ._rccsd import (_rccsd_unit_calculate_energy,
                      _rccsd_unit_calc_residuals)
+
+
 class RCCSD(CC):
     """
     This class implements classic RCCSD method
@@ -75,7 +77,8 @@ class RCCSD(CC):
         """
 
         raise NotIMplemented('Bug is likely here')
-        multiply_by_inverse = lambda x: x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
+        multiply_by_inverse = lambda x: x * \
+            (- cc_denom(h.f, x.ndim, 'dir', 'full'))
         return g.map(multiply_by_inverse)
 
     def update_rhs(self, h, a, r):
@@ -83,16 +86,17 @@ class RCCSD(CC):
         Updates right hand side of the CC equations, commonly referred as G
         """
 
-        divide_by_inverse = lambda x: x / (- cc_denom(h.f, x.ndim, 'dir', 'full'))      
+        divide_by_inverse = lambda x: x / \
+            (- cc_denom(h.f, x.ndim, 'dir', 'full'))
         return (r - a).map(divide_by_inverse)
-
 
     def calculate_update(self, h, a):
         """
         Solving for new T amlitudes using RHS and denominator
         """
         r = self.calc_residuals(h, a)
-        multiply_by_inverse = lambda x: x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
+        multiply_by_inverse = lambda x: x * \
+            (cc_denom(h.f, x.ndim, 'dir', 'full'))
         return r.map(multiply_by_inverse)
 
 
@@ -108,14 +112,12 @@ class RCCSD_UNIT(RCCSD):
 
         return _rccsd_unit_calculate_energy(h, a)
 
-
     def calc_residuals(self, h, a):
         """
         Updates residuals of the CC equations
         """
 
         return _rccsd_unit_calc_residuals(h, a)
-
 
     def solve_amps(self, h, a, g):
         """
@@ -240,7 +242,9 @@ def test_cc_step():   # pragma: nocover
     cc = RCCSD(rhf)
 
     converged, energy, _ = step_solver(
-        cc, conv_tol_energy=-1, use_optimizer='momentum', optimizer_kwargs={'beta' : 0.85}, alpha=0.1, max_cycle=200)
+        cc, conv_tol_energy=-1, use_optimizer='adamax',
+        optimizer_kwargs=dict(alpha=0.01, beta=0.85, gamma=0.9), max_cycle=500)
+
 
 if __name__ == '__main__':
     # test_mp2_energy()
