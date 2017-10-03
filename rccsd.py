@@ -1,13 +1,13 @@
 import numpy as np
-from .cc_solvers import CC
-from .denom import cc_denom
+from tcc.cc_solvers import CC
+from tcc.denom import cc_denom
 
-from .tensors import Tensors
-from ._rccsd import (_rccsd_calculate_energy,
-                     _rccsd_calc_residuals)
+from tcc.tensors import Tensors
+from tcc._rccsd import (_rccsd_calculate_energy,
+                        _rccsd_calc_residuals)
 
-from ._rccsd import (_rccsd_unit_calculate_energy,
-                     _rccsd_unit_calc_residuals)
+from tcc._rccsd import (_rccsd_unit_calculate_energy,
+                        _rccsd_unit_calc_residuals)
 
 
 class RCCSD(CC):
@@ -76,9 +76,9 @@ class RCCSD(CC):
         is consistent with the order in amplitudes
         """
 
-        raise NotIMplemented('Bug is likely here')
-        multiply_by_inverse = lambda x: x * \
-            (- cc_denom(h.f, x.ndim, 'dir', 'full'))
+        def multiply_by_inverse(x):
+            return x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
+
         return g.map(multiply_by_inverse)
 
     def update_rhs(self, h, a, r):
@@ -86,18 +86,26 @@ class RCCSD(CC):
         Updates right hand side of the CC equations, commonly referred as G
         """
 
-        divide_by_inverse = lambda x: x / \
-            (- cc_denom(h.f, x.ndim, 'dir', 'full'))
-        return (r - a).map(divide_by_inverse)
+        def divide_by_inverse(x):
+            return x / (cc_denom(h.f, x.ndim, 'dir', 'full'))
+
+        return r - a.map(divide_by_inverse)
 
     def calculate_update(self, h, a):
         """
         Solving for new T amlitudes using RHS and denominator
         """
         r = self.calc_residuals(h, a)
-        multiply_by_inverse = lambda x: x * \
-            (cc_denom(h.f, x.ndim, 'dir', 'full'))
+
+        def multiply_by_inverse(x):
+            return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
+
         return r.map(multiply_by_inverse)
+
+        # return Tensors(
+        #     t1=r.t1 * (- cc_denom(h.f, 2, 'dir', 'full')),
+        #     t2=r.t2 * (- cc_denom(h.f, 4, 'dir', 'full'))
+        # )
 
 
 class RCCSD_UNIT(RCCSD):
@@ -195,11 +203,15 @@ def test_cc_unitary():   # pragma: nocover
 
     from tcc.cc_solvers import residual_diis_solver
     from tcc.cc_solvers import classic_solver
-    from tcc.rccsd import RCCSD_UNIT
-    cc = RCCSD_UNIT(rhf)
+    from tcc.rccsd import RCCSD_UNIT, RCCSD
+    cc1 = RCCSD_UNIT(rhf)
+    cc2 = RCCSD(rhf)
 
-    converged, energy, _ = residual_diis_solver(
-        cc, ndiis=5, conv_tol_energy=-1, conv_tol_res=1e-10)
+    converged1, energy2, _ = residual_diis_solver(
+        cc1, ndiis=5, conv_tol_energy=-1, conv_tol_res=1e-10)
+
+    converged2, energy2, _ = residual_diis_solver(
+        cc2, ndiis=5, conv_tol_energy=-1, conv_tol_res=1e-10)
 
 
 def test_cc_hubbard():   # pragma: nocover
@@ -241,12 +253,18 @@ def test_cc_step():   # pragma: nocover
     from tcc.rccsd import RCCSD
     cc = RCCSD(rhf)
 
-    converged, energy, _ = step_solver(
-        cc, conv_tol_energy=-1, use_optimizer='adamax',
-        optimizer_kwargs=dict(alpha=0.01, beta=0.85, gamma=0.9), max_cycle=500)
+    converged1, energy1, _ = classic_solver(
+        cc, conv_tol_energy=1e-10, conv_tol_amps=1e-10,
+        max_cycle=20)
+    cc._converged = False
+
+    converged2, energy2, _ = step_solver(
+        cc, conv_tol_energy=-1, use_optimizer='rmsprop',
+        optimizer_kwargs=dict(alpha=1, beta=0.7),
+        max_cycle=100)
 
 
-def compare_to_aq(): # pragma: nocover
+def compare_to_aq():  # pragma: nocover
     from pyscf import gto
     from pyscf import scf
     mol = gto.Mole()
@@ -268,15 +286,18 @@ def compare_to_aq(): # pragma: nocover
     cc = RCCSD_UNIT(rhf)
 
     converged, energy, amps = classic_solver(
-        cc, conv_tol_energy=1e-14, max_cycle=200)
+        cc, conv_tol_energy=1e-14, conv_tol_amps=1e-10,
+        max_cycle=200)
 
     import h5py
     f = h5py.File('amplitude_dump.h5', 'r')
     t1 = f['t1_19'][()].T
-    t2 = f['t2_19'][()].T    
+    t2 = f['t2_19'][()].T
     f.close()
+
+
 if __name__ == '__main__':
-    # test_mp2_energy()
-    # test_cc_hubbard()
-    # test_cc_unitary()
+    test_mp2_energy()
+    test_cc_hubbard()
+    test_cc_unitary()
     test_cc_step()
