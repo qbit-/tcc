@@ -102,11 +102,6 @@ class RCCSD(CC):
 
         return r.map(multiply_by_inverse)
 
-        # return Tensors(
-        #     t1=r.t1 * (- cc_denom(h.f, 2, 'dir', 'full')),
-        #     t2=r.t2 * (- cc_denom(h.f, 4, 'dir', 'full'))
-        # )
-
 
 class RCCSD_UNIT(RCCSD):
     """
@@ -156,6 +151,7 @@ class RCCSD_UNIT(RCCSD):
         """
         Calculates RHS of the fixed point iteration of CC equations
         """
+
         return Tensors(
             t1=r.t1 - 2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
             t2=r.t2 - 2 * (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])
@@ -176,7 +172,6 @@ def test_mp2_energy():  # pragma: nocover
                  'O': 'cc-pvdz', }
     mol.build()
     rhf = scf.RHF(mol)
-    # rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()  # -76.0267656731
     CCobj = RCCSD(rhf)
     h = CCobj.create_ham()
@@ -198,7 +193,6 @@ def test_cc_unitary():   # pragma: nocover
                  'O': 'sto-3g', }
     mol.build()
     rhf = scf.RHF(mol)
-    # rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()  # -76.0267656731
 
     from tcc.cc_solvers import residual_diis_solver
@@ -225,9 +219,6 @@ def test_cc_hubbard():   # pragma: nocover
     from tcc.cc_solvers import root_solver, residual_diis_solver
     from tcc.rccsd import RCCSD_UNIT
     cc = RCCSD_UNIT(rhf)
-    # converged, energy, _ = residual_diis_solver(
-    #     cc, ndiis=5, conv_tol_res=1e-6, lam=5,
-    #     max_cycle=100)
     converged, energy, _ = root_solver(
         cc, conv_tol=1e-6)
 
@@ -245,7 +236,6 @@ def test_cc_step():   # pragma: nocover
                  'O': 'sto-3g', }
     mol.build()
     rhf = scf.RHF(mol)
-    # rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()  # -76.0267656731
 
     from tcc.cc_solvers import residual_diis_solver
@@ -277,7 +267,6 @@ def compare_to_aq():  # pragma: nocover
                  'O': '3-21g', }
     mol.build()
     rhf = scf.RHF(mol)
-    # rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()  # -76.0267656731
 
     from tcc.cc_solvers import residual_diis_solver
