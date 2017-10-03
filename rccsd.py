@@ -246,6 +246,35 @@ def test_cc_step():   # pragma: nocover
         optimizer_kwargs=dict(alpha=0.01, beta=0.85, gamma=0.9), max_cycle=500)
 
 
+def compare_to_aq(): # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = [
+        [8, (0., 0., -0.10277433)],
+        [1, (0., -1.18603436,  0.81555159)],
+        [1, (0., 1.18603436,  0.81555159)]]
+    mol.unit = 'Bohr'
+    mol.basis = {'H': '3-21g',
+                 'O': '3-21g', }
+    mol.build()
+    rhf = scf.RHF(mol)
+    # rhf = scf.density_fit(scf.RHF(mol))
+    rhf.scf()  # -76.0267656731
+
+    from tcc.cc_solvers import residual_diis_solver
+    from tcc.cc_solvers import step_solver, classic_solver
+    from tcc.rccsd import RCCSD_UNIT
+    cc = RCCSD_UNIT(rhf)
+
+    converged, energy, amps = classic_solver(
+        cc, conv_tol_energy=1e-14, max_cycle=200)
+
+    import h5py
+    f = h5py.File('amplitude_dump.h5', 'r')
+    t1 = f['t1_19'][()].T
+    t2 = f['t2_19'][()].T    
+    f.close()
 if __name__ == '__main__':
     # test_mp2_energy()
     # test_cc_hubbard()
