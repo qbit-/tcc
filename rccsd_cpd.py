@@ -1,26 +1,30 @@
 import numpy as np
 from numpy import einsum
+from tcc.tensors import Tensors
 from tcc.cc_solvers import CC
 from tcc.denom import cc_denom
 from collections import namedtuple
 from types import SimpleNamespace
 from tcc.cpd import cpd_initialize, cpd_rebuild
 from tensorly.decomposition import parafac
-from tcc._rccsd_cpd_ls import (calculate_energy_cpd, calc_residuals_cpd,
-                               calc_r2dr2dx)
+from tcc._rccsd_cpd import (
+    _rccsd_cpd_ls_t_calculate_energy,
+    _rccsd_cpd_ls_t_calc_residuals,
+    _rccsd_cpd_calc_r2dr2dx)
+
 from tcc.cpd import cpd_symmetrize
+
 
 class RCCSD_CPD_LS_T(CC):
     """
     This class implements classic RCCSD method
     with CPD decomposed amplitudes, where we calculate
     full residuals as in normal RCCSD, but taking advantage of the
-    structure of T2. We then calculate CPD of T2 as a single
+    structure of T2. We then calculate CPD of full T2 as a single
     shot ALS.
 
     Interaction is RI decomposed, T2 amplitudes are abij order.
     """
-    types = SimpleNamespace()
 
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
                  mo_occ=None, rankt=None):
@@ -50,35 +54,6 @@ class RCCSD_CPD_LS_T(CC):
         else:
             self.rankt = rankt
 
-        # Add some type definitions
-        self.types.AMPLITUDES_TYPE = namedtuple(
-            'RCCSD_AMPLITUDES',
-            field_names=('t1',
-                         'x1', 'x2', 'x3', 'x4'
-                         ))
-
-        self.types.RHS_TYPE = namedtuple(
-            'RCCSD_RHS',
-            field_names=('gt1',
-                         'gt2'
-                         ))
-
-        self.types.RESIDUALS_TYPE = namedtuple(
-            'RCCSD_RESIDUALS',
-            field_names=('rt1',
-                         'rt2'))
-
-    @property
-    def mos(self):
-        '''
-        MOs object
-        '''
-        return self._mos
-
-    @property
-    def method_name(self):
-        return 'RCCSD_CPD_LS_T'
-
     def create_ham(self):
         """
         Create full Hamiltonian (in core)
@@ -98,25 +73,26 @@ class RCCSD_CPD_LS_T(CC):
 
         t2_full = 2 * v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
         xs = parafac(t2_full, self.rankt)
+        names = ['x1', 'x2', 'x3', 'x4']
 
-        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2) : ('ident',)})
+        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
 
-        return self.types.AMPLITUDES_TYPE(t1, *xs)
+        return Tensors(t1=t1,
+                       t2=Tensors(zip(names, xs)))
 
     def calculate_energy(self, h, a):
         """
         Calculate RCCSD energy
         Automatically generated
         """
-        energy = calculate_energy_cpd(h, a)
+        energy = _rccsd_cpd_ls_t_calculate_energy(h, a)
         return energy
 
     def calc_residuals(self, h, a):
         """
         Calculates CC residuals for CC equations
         """
-        rt1, rt2 = calc_residuals_cpd(h, a)
-        return self.types.RESIDUALS_TYPE(rt1, rt2)
+        return _rccsd_cpd_ls_t_calc_residuals(h, a)
 
     def solve_amps(self, h, a, g):
         """
@@ -124,15 +100,15 @@ class RCCSD_CPD_LS_T(CC):
         It is assumed that the order of fields in the RHS
         is consistent with the order in amplitudes
         """
-        t1 = g.gt1 / (- 2) * cc_denom(h.f, 2, 'dir', 'full')
+        t1 = g.t1 / (- 2) * cc_denom(h.f, 2, 'dir', 'full')
 
-        t2_full = (2 * g.gt2 + g.gt2.transpose([0, 1, 3, 2])
+        t2_full = (2 * g.t2 + g.t2.transpose([0, 1, 3, 2])
                    ) / (- 6) * cc_denom(h.f, 4, 'dir', 'full')
 
         rankt = self.rankt
         xs = parafac(t2_full, rankt, n_iter_max=1, init='guess',
-                     guess=[a.x1[:, :rankt], a.x2[:, :rankt],
-                            a.x3[:, :rankt], a.x4[:, :rankt]])
+                     guess=[a.t2.x1[:, :rankt], a.t2.x2[:, :rankt],
+                            a.t2.x3[:, :rankt], a.t2.x4[:, :rankt]])
 
         # xs = parafac(t2_full, rankt, n_iter_max=1, init='guess',
         #              guess=[2 * a.x1[:, :rankt], 2 * a.x2[:, :rankt],
@@ -140,17 +116,19 @@ class RCCSD_CPD_LS_T(CC):
 
         # xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2) : ('ident',)})
 
-        return self.types.AMPLITUDES_TYPE(t1, *xs)
+        names = ['x1', 'x2', 'x3', 'x4']
+        return Tensors(t1=t1, t2=Tensors(zip(names, xs)))
 
     def update_rhs(self, h, a, r):
         """
         Updates right hand side of the CC equations, commonly referred as G
         """
-        return self.types.RHS_TYPE(
-            gt1=r.rt1 - 2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
-            gt2=r.rt2 - 2 * (
-                2 * cpd_rebuild((a.x1, a.x2, a.x3, a.x4))
-                - cpd_rebuild((a.x1, a.x2, a.x3, a.x4)).transpose([0, 1, 3, 2])
+        return Tensors(
+            t1=r.t1 - 2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
+            t2=r.t2 - 2 * (
+                2 * cpd_rebuild((a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4))
+                - cpd_rebuild((a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4)
+                              ).transpose([0, 1, 3, 2])
             ) / cc_denom(h.f, 4, 'dir', 'full')
         )
 
@@ -187,7 +165,6 @@ class RCCSD_CPD_LS_R2(CC):
 
     Interaction is RI decomposed, T2 amplitudes are abij order.
     """
-    types = SimpleNamespace()
 
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
                  mo_occ=None, rankt=None):
@@ -217,29 +194,6 @@ class RCCSD_CPD_LS_R2(CC):
         else:
             self.rankt = rankt
 
-        # Add some type definitions
-        self.types.AMPLITUDES_TYPE = namedtuple(
-            'RCCSD_AMPLITUDES',
-            field_names=('t1', 'x1', 'x2', 'x3', 'x4'
-                         ))
-
-        self.types.RESIDUALS_TYPE = namedtuple(
-            'RCCSD_RESIDUALS',
-            field_names=('rt1', 'rx1', 'rx2', 'rx3',
-                         'rx4'
-                         ))
-
-    @property
-    def mos(self):
-        '''
-        MOs object
-        '''
-        return self._mos
-
-    @property
-    def method_name(self):
-        return 'RCCSD_CPD_LS_R2'
-
     def create_ham(self):
         """
         Create full Hamiltonian (in core)
@@ -260,24 +214,25 @@ class RCCSD_CPD_LS_R2(CC):
         t2_full = 2 * v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
         t2_cpd = parafac(t2_full, self.rankt)
 
-        return self.types.AMPLITUDES_TYPE(t1, *t2_cpd)
+        names = ['x1', 'x2', 'x3', 'x4']
+        return Tensors(t1=t1, t2=Tensors(zip(names, t2_cpd)))
 
     def calc_residuals(self, h, a):
         """
         Calculates CC residuals for CC equations
         """
-        rt1, rt2 = calc_residuals_cpd(h, a)
-        rx1, rx2, rx3, rx4 = calc_r2dr2dx(h, a, rt2)
+        full_resids = _rccsd_cpd_ls_t_calc_residuals(h, a)
+        resids_t2 = _rccsd_cpd_calc_r2dr2dx(h, a, full_resids.t2)
 
-        return self.types.RESIDUALS_TYPE(rt1, rx1, rx2,
-                                         rx3, rx4)
+        names = ['x1', 'x2', 'x3', 'x4']
+        return Tensors(t1=full_resids.t1, t2=resids_t2)
 
     def calculate_energy(self, h, a):
         """
         Calculate RCCSD energy
         Automatically generated
         """
-        energy = calculate_energy_cpd(h, a)
+        energy = _rccsd_cpd_ls_t_calculate_energy(h, a)
         return energy
 
     def solve_amps(self, h, a, g):
@@ -294,6 +249,7 @@ class RCCSD_CPD_LS_R2(CC):
         """
         raise NotImplementedError
 
+
 class RCCSD_CPD_LS_R2_W(RCCSD_CPD_LS_R2):
     """
     This class implements classic RCCSD method
@@ -306,21 +262,19 @@ class RCCSD_CPD_LS_R2_W(RCCSD_CPD_LS_R2):
 
     Interaction is RI decomposed, T2 amplitudes are abij order.
     """
-    @property
-    def method_name(self):
-        return 'RCCSD_CPD_LS_R2_W'
 
     def calc_residuals(self, h, a):
         """
         Calculates CC residuals for CC equations
         """
-        rt1, rt2 = calc_residuals_cpd(h, a)
+        rt1, rt2 = _rccsd_cpd_ls_t_calc_residuals(h, a)
         d2squared = cc_denom(h.f, 4, 'dir', 'full')**2
         rt2 = rt2 * d2squared
-        rx1, rx2, rx3, rx4 = calc_r2dr2dx(h, a, rt2)
+        resids = _rccsd_cpd_calc_r2dr2dx(h, a, rt2)
 
-        return self.types.RESIDUALS_TYPE(rt1, rx1, rx2,
-                                         rx3, rx4)
+        names = ['x1', 'x2', 'x3', 'x4']
+        return Tensors(t1=rt1, t2=Tensors(zip(names, resids)))
+
 
 def test_cc():   # pragma: nocover
     from pyscf import gto
@@ -374,16 +328,17 @@ def test_hubbard():   # pragma: nocover
     from tcc.rccsd_cpd import RCCSD_CPD_LS_T_HUB
 
     cc1 = RCCSD_MUL_RI_HUB(rhf)
-    cc2 = RCCSD_CPD_LS_T_HUB(rhf, rankt=12)
+    cc2 = RCCSD_CPD_LS_T_HUB(rhf, rankt=30)
 
     converged1, energy1, amps1 = classic_solver(
-        cc1, lam=5, max_cycle=10)
+        cc1, lam=5, max_cycle=50)
 
     converged2, energy2, amps2 = classic_solver(
         cc2, lam=1, conv_tol_energy=1e-8, max_cycle=500)
 
     # converged3, energy3, amps3 = root_solver(
     #      cc2)   # does not work
+
 
 if __name__ == '__main__':
     test_hubbard()
