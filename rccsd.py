@@ -229,7 +229,7 @@ def test_cc_step():   # pragma: nocover
     mol = gto.Mole()
     mol.atom = [
         [8, (0., 0., 0.)],
-        [1, (0., -0.757, 0.587)],
+        [1, (0.,  -0.757, 0.587)],
         [1, (0., 0.757, 0.587)]]
 
     mol.basis = {'H': 'sto-3g',
@@ -259,34 +259,60 @@ def compare_to_aq():  # pragma: nocover
     from pyscf import scf
     mol = gto.Mole()
     mol.atom = [
-        [8, (0., 0., -0.10277433)],
-        [1, (0., -1.18603436,  0.81555159)],
-        [1, (0., 1.18603436,  0.81555159)]]
-    mol.unit = 'Bohr'
+        [8, (0., 0., 0.)],
+        [1, (0.,  -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
     mol.basis = {'H': '3-21g',
                  'O': '3-21g', }
     mol.build()
     rhf = scf.RHF(mol)
     rhf.scf()  # -76.0267656731
 
+    # load reference arrays
+    import h5py
+    import numpy as np
+    f1 = h5py.File('data/test_references/aq_ccsd_amps.h5', 'r')
+    # use amplitudes from the last iteration
+    num_steps = int(len(f1.keys()) / 2)
+    t1 = f1['t1_' + str(num_steps)][()].T
+    t2 = f1['t2_' + str(num_steps)][()].T
+    f1.close()
+
+    f1 = h5py.File('data/test_references/aq_ccsd_mos.h5', 'r')
+    CA = np.hstack((f1['cI'][()].T, f1['cA'][()].T))
+    CB = np.hstack((f1['ci'][()].T, f1['ca'][()].T))
+    f1.close()
+
+    # permute AO indices to match pyscf order
+    perm = [0, 1, 2, 4, 5, 3, 7, 8, 6, 9, 10, 11, 12]
+    from tcc.utils import perm_matrix
+    m = perm_matrix(perm)
+    CA_perm = m.dot(CA)
+
     from tcc.cc_solvers import residual_diis_solver
     from tcc.cc_solvers import step_solver, classic_solver
-    from tcc.rccsd import RCCSD_UNIT
-    cc = RCCSD_UNIT(rhf)
+    from tcc.rccsd import RCCSD
+    cc = RCCSD(rhf, mo_coeff=CA_perm)
 
     converged, energy, amps = classic_solver(
         cc, conv_tol_energy=1e-14, conv_tol_amps=1e-10,
         max_cycle=200)
 
-    import h5py
-    f = h5py.File('amplitude_dump.h5', 'r')
-    t1 = f['t1_19'][()].T
-    t2 = f['t2_19'][()].T
-    f.close()
+    print('dt1: {}'.format(np.max(t1 - amps.t1)))
+    print('dt2: {}'.format(np.max(t2 - amps.t2)))
+
+    from tcc.tensors import Tensors
+    test_amps = Tensors(t1=t1, t2=t2)
+    h = cc.create_ham()
+    r = cc.calc_residuals(h, test_amps)
+
+    print('max r1: {}'.format(np.max(r.t1)))
+    print('max r2: {}'.format(np.max(r.t2)))
 
 
 if __name__ == '__main__':
-    test_mp2_energy()
-    test_cc_hubbard()
-    test_cc_unitary()
-    test_cc_step()
+    # test_mp2_energy()
+    # test_cc_hubbard()
+    # test_cc_unitary()
+    # test_cc_step()
+    compare_to_aq()

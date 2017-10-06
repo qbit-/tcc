@@ -35,7 +35,8 @@ def khatrirao(matrices, skip_matrix=None, reverse=False):
     31.0
     """
     if skip_matrix is not None:
-        matrices = [matrices[i] for i in range(len(matrices)) if i != skip_matrix]
+        matrices = [matrices[i]
+                    for i in range(len(matrices)) if i != skip_matrix]
 
     n_columns = matrices[0].shape[1]
 
@@ -60,37 +61,12 @@ def khatrirao(matrices, skip_matrix=None, reverse=False):
     start = ord('a')
     common_dim = 'z'
     target = ''.join(chr(start + i) for i in range(n_factors))
-    source = ','.join(i+common_dim for i in target)
-    operation = source+'->'+target+common_dim
+    source = ','.join(i + common_dim for i in target)
+    operation = source + '->' + target + common_dim
     return np.einsum(operation, *matrices).reshape((-1, n_columns))
 
-def unroll_iterable(l):
-    for el in l:
-        if isinstance(el, collections.Iterable) and not isinstance(el, (str, bytes)):
-            yield from unroll_iterable(el)
-        else:
-            yield el
 
-
-def np_container_structure(l):
-    return tuple(el.shape for el in l)
-
-
-def merge_np_container(l):
-    return np.hstack(el.flatten() for el in l)
-
-
-def unmerge_np_tuple(shapes, t):
-    offsets = _get_offsets(shapes)
-    for ii in range(len(shapes)):
-        start, end = offsets[ii]
-        yield t[start:end].reshape(shapes[ii])
-
-
-def _get_offsets(shapes):
-    lengths = [0, ] + [np.prod(el) for el in shapes]
-    return tuple(zip(np.cumsum(lengths)[:-1], np.cumsum(lengths)[1:]))
-
-
-def unmerge_np_container(cont_type, s, t):
-    return cont_type(*unmerge_np_tuple(s, t))
+def perm_matrix(x):
+    """Returns a matrix corresponding to a given permutation vector"""
+    n = len(x)
+    return np.eye(n, n)[:, x]

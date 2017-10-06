@@ -2,9 +2,9 @@ import numpy as np
 from numpy import einsum
 from tcc.denom import cc_denom
 from tcc.cc_solvers import CC
-from collections import namedtuple
-from types import SimpleNamespace
-from tcc._rccsdt import gen_energy, gen_residuals
+from tcc.tensors import Tensors
+from tcc._rccsdt import (_rccsdt_calculate_energy,
+                         _rccsdt_calc_residuals)
 
 
 class RCCSDT(CC):
@@ -14,8 +14,6 @@ class RCCSDT(CC):
     """
     #  These are containers used by all  methods of this class
     # to pass numpy arrays
-
-    types = SimpleNamespace()
 
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
                  mo_occ=None):
@@ -37,25 +35,6 @@ class RCCSDT(CC):
         from tcc.mos import SPINLESS_MOS
         self._mos = SPINLESS_MOS(mo_coeff, mo_energy, mo_occ, frozen)
 
-        # Add some type definitions
-        self.types.AMPLITUDES_TYPE = namedtuple('RCCSD_AMPLITUDES_FULL',
-                                                field_names=('t1', 't2', 't3'))
-        self.types.RHS_TYPE = namedtuple('RCCSD_RHS_FULL',
-                                         field_names=('g1', 'g2', 'g3'))
-        self.types.RESIDUALS_TYPE = namedtuple('RCCSD_RESIDUALS_FULL',
-                                               field_names=('r1', 'r2', 'r3'))
-
-    @property
-    def method_name(self):
-        return 'RCCSDT'
-
-    @property
-    def mos(self):
-        '''
-        MOs object
-        '''
-        return self._mos
-
     def create_ham(self):
         """
         Create full Hamiltonian (in core)
@@ -76,7 +55,7 @@ class RCCSDT(CC):
         t2 = ham.v.oovv.transpose([2, 3, 0, 1]).conj() * (- e_abij)
         t3 = np.zeros((nvir,) * 3 + (nocc,) * 3)
 
-        return self.types.AMPLITUDES_TYPE(t1, t2, t3)
+        return Tensors(t1=t1, t2=t2, t3=t3)
 
     def calculate_energy(self, h, a):
         """
@@ -84,23 +63,23 @@ class RCCSDT(CC):
         Automatically generated
         """
 
-        return gen_energy(h, a)
+        return _rccsdt_calculate_energy(h, a)
 
     def calc_residuals(self, h, a):
         """
         Updates right hand side of the CC equations, commonly referred as G
         """
 
-        return self.types.RESIDUALS_TYPE(*gen_residuals(h, a))
+        return _rccsdt_calc_residuals(h, a)
 
     def update_rhs(self, h, a, r):
         """
         Calculates right hand side of CC equations
         """
-        return self.types.RHS_TYPE(
-            g1=r.r1 - a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
-            g2=r.r2 - a.t2 / cc_denom(h.f, 4, 'dir', 'full'),
-            g3=r.r3 - (a.t3 - a.t3.transpose([2, 1, 0, 3, 4, 5])) /
+        return Tensors(
+            t1=r.t1 - a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
+            t2=r.t2 - a.t2 / cc_denom(h.f, 4, 'dir', 'full'),
+            t3=r.t3 - (a.t3 - a.t3.transpose([0, 1, 2, 4, 3, 5])) /
             cc_denom(h.f, 6, 'dir', 'full')
         )
 
@@ -111,34 +90,35 @@ class RCCSDT(CC):
         is consistent with the order in amplitudes
         """
 
-        O3 = g.g3 / (- cc_denom(h.f, 6, 'dir', 'full'))
-        O3 = 1 / 12 * (O3
-                       - O3.transpose([1, 0, 2, 3, 4, 5])
-                       + O3.transpose([1, 2, 0, 3, 4, 5])
-                       - O3.transpose([2, 1, 0, 3, 4, 5])
-                       + O3.transpose([2, 0, 1, 3, 4, 5])
-                       - O3.transpose([0, 2, 1, 3, 4, 5])
-                       + O3
-                       - O3.transpose([0, 1, 2, 4, 3, 5])
-                       + O3.transpose([0, 1, 2, 4, 5, 3])
-                       - O3.transpose([0, 1, 2, 5, 4, 3])
-                       + O3.transpose([0, 1, 2, 5, 3, 4])
-                       - O3.transpose([0, 1, 2, 3, 5, 4])
+        g3 = (g.t3 + g.t3.transpose([0, 1, 2, 5, 3, 4]) +
+              g.t3.transpose([0, 1, 2, 4, 5, 3])) / 3 +\
+            (g.t3 + g.t3.transpose([0, 2, 1, 3, 5, 4]) +
+             g.t3.transpose([2, 0, 1, 5, 3, 4])) / 3
+
+        g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+        return Tensors(
+            t1=g.t1 * (- cc_denom(h.f, g.t1.ndim, 'dir', 'full')),
+            t2=g2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full')),
+            t3=g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
         )
 
-        # O3 = 1 / 6 * (O3
-        #               + O3.transpose([1, 0, 2, 4, 3, 5])
-        #               + O3.transpose([1, 2, 0, 4, 5, 3])
-        #               + O3.transpose([2, 1, 0, 5, 4, 3])
-        #               + O3.transpose([2, 0, 1, 5, 3, 4])
-        #               + O3.transpose([0, 2, 1, 3, 5, 4])
-        # )
-        return self.types.AMPLITUDES_TYPE(
-            g[0] * (- cc_denom(h.f, g[0].ndim, 'dir', 'full')),
-            g[1] * (- cc_denom(h.f, g[1].ndim, 'dir', 'full')),
-            1 / 2 * O3
-        )
+    def calculate_update(self, h, a):
+        """
+        Solving for new T amlitudes using RHS and denominator
+        """
+        r = self.calc_residuals(h, a)
+        r3 = (r.t3 + r.t3.transpose([0, 1, 2, 5, 3, 4]) +
+              r.t3.transpose([0, 1, 2, 4, 5, 3]) + r.t3 +
+              r.t3.transpose([0, 2, 1, 3, 5, 4]) +
+              r.t3.transpose([2, 0, 1, 5, 3, 4])) / 3 *\
+            cc_denom(h.f, 6, 'dir', 'full')
 
+        dt = Tensors(t1=r.t1, t2=r.t2, t3=r3)
+
+        def multiply_by_inverse(x):
+            return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
+
+        return dt.map(multiply_by_inverse)
 
 
 def test_cc():   # pragma: nocover
@@ -171,7 +151,7 @@ def test_cc():   # pragma: nocover
                   1.16959610         0.60768372
                   0.38038900         0.39195739
     """)
-    
+
     mol.basis = {'H': basisH,
                  'O': basisO, }
     mol.build()
@@ -188,12 +168,79 @@ def test_cc():   # pragma: nocover
     converged_d, energy_d, amps_d = root_solver(cc2)
     nv, no = amps_d.t1.shape
     import numpy as np
-    ampi = cc.types.AMPLITUDES_TYPE(amps_d.t1, amps_d.t2, np.zeros((nv,)*3 + (no,)*3))
+    ampi = cc.types.AMPLITUDES_TYPE(
+        amps_d.t1, amps_d.t2, np.zeros((nv,) * 3 + (no,) * 3))
     converged1, energy1, amps1 = root_solver(cc, amps=ampi)
     converged2, energy2, _ = classic_solver(cc, lam=2)
     converged3, energy3, _ = residual_diis_solver(
         cc, lam=2, ndiis=3)
 
 
+def compare_to_aq():  # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = [
+        [8, (0., 0., 0.)],
+        [1, (0.,  -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+    mol.basis = {'H': '3-21g',
+                 'O': '3-21g', }
+    mol.build()
+    rhf = scf.RHF(mol)
+    rhf.scf()  # -76.0267656731
+
+    # load reference arrays
+    import h5py
+    import numpy as np
+    f1 = h5py.File('data/test_references/aq_ccsdt_amps.h5', 'r')
+    # use amplitudes from the last iteration
+    num_steps = int(len(f1.keys()) / 4)
+    t1 = f1['t1_' + str(num_steps)][()].T
+    t2 = f1['t2_' + str(num_steps)][()].T
+    t3 = f1['t3_' + str(num_steps)][()].T
+    t3b = f1['t3b_' + str(num_steps)][()].T
+    f1.close()
+
+    f1 = h5py.File('data/test_references/aq_ccsdt_mos.h5', 'r')
+    CA = np.hstack((f1['cI'][()].T, f1['cA'][()].T))
+    CB = np.hstack((f1['ci'][()].T, f1['ca'][()].T))
+    f1.close()
+
+    # permute AO indices to match pyscf order
+    from tcc.utils import perm_matrix
+    perm = [0, 1, 2, 4, 5, 3, 7, 8, 6, 9, 10, 11, 12]
+    m = perm_matrix(perm)
+    CA_perm = m.dot(CA)
+
+    from tcc.cc_solvers import residual_diis_solver
+    from tcc.cc_solvers import step_solver, classic_solver
+    from tcc.rccsdt import RCCSDT
+    from tcc.rccsd import RCCSD
+    cc = RCCSDT(rhf, mo_coeff=CA_perm)
+
+    from tcc.tensors import Tensors
+    h = cc.create_ham()
+    t3s = (t3 + t3.transpose([0, 1, 2, 5, 3, 4])
+           + t3.transpose([0, 1, 2, 4, 5, 3])) / 3 +\
+        (t3 + t3.transpose([0, 2, 1, 3, 5, 4]) +
+         t3.transpose([2, 0, 1, 5, 3, 4])) / 3
+    test_amps = Tensors(t1=t1, t2=t2, t3=t3s)
+    r = cc.calc_residuals(h, test_amps)
+
+    # converged, energy, amps = step_solver(
+    #     cc, amps=test_amps, conv_tol_energy=1e-14, use_optimizer='momentum',
+    #     optimizer_kwargs=dict(beta=0.6, alpha=0.01),
+    #     max_cycle=300)
+    converged, energy, amps = classic_solver(
+        cc, amps=test_amps,
+        max_cycle=300)
+
+    print('max r1: {}'.format(np.max(r.t1)))
+    print('max r2: {}'.format(np.max(r.t2)))
+    print('max r3: {}'.format(np.max(r.t3)))
+
+
 if __name__ == '__main__':
-    test_cc()
+    # test_cc()
+    compare_to_aq()
