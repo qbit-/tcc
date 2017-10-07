@@ -78,17 +78,19 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val in norm_res.items()))
 
-        if abs(energy - old_energy) < conv_tol_energy:
+        dE = energy - old_energy
+        old_amps = amps
+        old_energy = energy
+
+        if abs(dE) < conv_tol_energy:
             cc._converged = True
         if abs(max_val) < conv_tol_res:
             cc._converged = True
-        old_amps = amps
-        old_energy = energy
         if cc._converged:
             log.note('Converged in %d steps. E(%s) = %.6e'
                      ' dE = %.6e  max(|r|) = %.6e (%s)',
                      istep, cc.method_name,
-                     energy, energy - old_energy,
+                     energy, dE,
                      max_val, max_key)
             break
 
@@ -158,11 +160,12 @@ def classic_solver(cc, amps=None, max_cycle=50,
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val in norm_diff_amps.items()))
 
-        if abs(new_energy - energy) < conv_tol_energy:
+        dE = new_energy - energy
+        if abs(dE) < conv_tol_energy:
             cc._converged = True
         if abs(max_val) < conv_tol_amps:
             cc._converged = True
-        if abs(new_energy - energy) > div_tol_energy:
+        if abs(dE) > div_tol_energy:
             cc._converged = False
             energy = np.nan
             break
@@ -173,7 +176,7 @@ def classic_solver(cc, amps=None, max_cycle=50,
             log.note('Converged in %d steps E(%s) = %.6e'
                      ' dE = %.6e  max(|dT|) = %.6e (%s)',
                      istep, cc.method_name,
-                     new_energy, new_energy - energy,
+                     new_energy, dE,
                      max_val,
                      max_key)
             break

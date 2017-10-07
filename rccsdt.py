@@ -90,10 +90,12 @@ class RCCSDT(CC):
         is consistent with the order in amplitudes
         """
 
-        g3 = (g.t3 + g.t3.transpose([0, 1, 2, 5, 3, 4]) +
-              g.t3.transpose([0, 1, 2, 4, 5, 3])) / 3 +\
-            (g.t3 + g.t3.transpose([0, 2, 1, 3, 5, 4]) +
-             g.t3.transpose([2, 0, 1, 5, 3, 4])) / 3
+        g3 = (+ g.t3
+              + g.t3.transpose([0, 1, 2, 5, 3, 4])
+              + g.t3.transpose([0, 1, 2, 4, 5, 3])
+              + g.t3.transpose([0, 1, 2, 3, 4, 5])
+              + g.t3.transpose([0, 2, 1, 3, 5, 4])
+              + g.t3.transpose([2, 1, 0, 5, 4, 3])) / 6
 
         g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
         return Tensors(
@@ -124,61 +126,6 @@ class RCCSDT(CC):
 def test_cc():   # pragma: nocover
     from pyscf import gto
     from pyscf import scf
-
-    mol = gto.Mole()
-    mol.atom = [
-        [8, (0., 0., 0.)],
-        [1, (0., 1.079252144093028, 1.474611055780858)],
-        [1, (0., 1.079252144093028, -1.474611055780858)]]
-    mol.unit = 'Bohr'
-    basisH = gto.basis.parse("""
-     He S
-                  3.42525091         0.15432897
-                  0.62391373         0.53532814
-                  0.16885540         0.44463454
-    """)
-    basisO = gto.basis.parse("""
-    He  S   
-                130.70932000         0.15432897
-                 23.80886100         0.53532814
-                  6.44360830         0.44463454
-    He  S   
-                  5.03315130        -0.09996723
-                  1.16959610         0.39951283
-                  0.38038900         0.70011547
-    He  P   
-                  5.03315130         0.15591627
-                  1.16959610         0.60768372
-                  0.38038900         0.39195739
-    """)
-
-    mol.basis = {'H': basisH,
-                 'O': basisO, }
-    mol.build()
-    rhf = scf.RHF(mol)
-    # rhf = scf.density_fit(scf.RHF(mol))
-    rhf.scf()  # -76.0267656731
-
-    from tcc.cc_solvers import (root_solver,
-                                classic_solver, residual_diis_solver)
-    from tcc.rccsdt import RCCSDT
-    from tcc.rccsd import RCCSD
-    cc = RCCSDT(rhf)
-    cc2 = RCCSD(rhf)
-    converged_d, energy_d, amps_d = root_solver(cc2)
-    nv, no = amps_d.t1.shape
-    import numpy as np
-    ampi = cc.types.AMPLITUDES_TYPE(
-        amps_d.t1, amps_d.t2, np.zeros((nv,) * 3 + (no,) * 3))
-    converged1, energy1, amps1 = root_solver(cc, amps=ampi)
-    converged2, energy2, _ = classic_solver(cc, lam=2)
-    converged3, energy3, _ = residual_diis_solver(
-        cc, lam=2, ndiis=3)
-
-
-def compare_to_aq():  # pragma: nocover
-    from pyscf import gto
-    from pyscf import scf
     mol = gto.Mole()
     mol.atom = [
         [8, (0., 0., 0.)],
@@ -188,52 +135,87 @@ def compare_to_aq():  # pragma: nocover
                  'O': '3-21g', }
     mol.build()
     rhf = scf.RHF(mol)
+    rhf.scf()
+
+    from tcc.rccsdt import RCCSDT
+    from tcc.cc_solvers import classic_solver
+    cc = RCCSDT(rhf)
+
+    converged, energy, amps = classic_solver(
+        cc, conv_tol_energy=1e-8,
+        max_cycle=100)
+
+    print('dE: {}'.format(energy - -1.304876e-01)
+
+
+
+def compare_to_aq():  # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    mol=gto.Mole()
+    mol.atom=[
+        [8, (0., 0., 0.)],
+        [1, (0.,  -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+    mol.basis={'H': '3-21g',
+                 'O': '3-21g', }
+    mol.build()
+    rhf=scf.RHF(mol)
     rhf.scf()  # -76.0267656731
 
     # load reference arrays
     import h5py
     import numpy as np
-    f1 = h5py.File('data/test_references/aq_ccsdt_amps.h5', 'r')
+    f1=h5py.File('data/test_references/aq_ccsdt_amps.h5', 'r')
     # use amplitudes from the last iteration
-    num_steps = int(len(f1.keys()) / 4)
-    t1 = f1['t1_' + str(num_steps)][()].T
-    t2 = f1['t2_' + str(num_steps)][()].T
-    t3 = f1['t3_' + str(num_steps)][()].T
-    t3b = f1['t3b_' + str(num_steps)][()].T
+    num_steps=int(len(f1.keys()) / 4)
+    t1=f1['t1_' + str(num_steps)][()].T
+    t2=f1['t2_' + str(num_steps)][()].T
+    t3=f1['t3_' + str(num_steps)][()].T
+    t3a=f1['t3b_' + str(num_steps)][()].T
     f1.close()
 
-    f1 = h5py.File('data/test_references/aq_ccsdt_mos.h5', 'r')
-    CA = np.hstack((f1['cI'][()].T, f1['cA'][()].T))
-    CB = np.hstack((f1['ci'][()].T, f1['ca'][()].T))
+    f1=h5py.File('data/test_references/aq_ccsdt_mos.h5', 'r')
+    CA=np.hstack((f1['cI'][()].T, f1['cA'][()].T))
+    CB=np.hstack((f1['ci'][()].T, f1['ca'][()].T))
     f1.close()
 
     # permute AO indices to match pyscf order
     from tcc.utils import perm_matrix
-    perm = [0, 1, 2, 4, 5, 3, 7, 8, 6, 9, 10, 11, 12]
-    m = perm_matrix(perm)
-    CA_perm = m.dot(CA)
+    perm=[0, 1, 2, 4, 5, 3, 7, 8, 6, 9, 10, 11, 12]
+    m=perm_matrix(perm)
+    CA_perm=m.dot(CA)
 
     from tcc.cc_solvers import residual_diis_solver
-    from tcc.cc_solvers import step_solver, classic_solver
+    from tcc.cc_solvers import (step_solver, classic_solver,
+                                residual_diis_solver)
     from tcc.rccsdt import RCCSDT
     from tcc.rccsd import RCCSD
-    cc = RCCSDT(rhf, mo_coeff=CA_perm)
+    cc=RCCSDT(rhf, mo_coeff=CA_perm)
 
     from tcc.tensors import Tensors
-    h = cc.create_ham()
-    t3s = (t3 + t3.transpose([0, 1, 2, 5, 3, 4])
-           + t3.transpose([0, 1, 2, 4, 5, 3])) / 3 +\
-        (t3 + t3.transpose([0, 2, 1, 3, 5, 4]) +
-         t3.transpose([2, 0, 1, 5, 3, 4])) / 3
-    test_amps = Tensors(t1=t1, t2=t2, t3=t3s)
-    r = cc.calc_residuals(h, test_amps)
+    h=cc.create_ham()
+    t3s=(+ t3
+           - t3.transpose([0, 1, 2, 4, 3, 5])
+           + t3.transpose([0, 1, 2, 5, 3, 4])
+           - t3.transpose([0, 1, 2, 3, 5, 4])
+           + t3.transpose([0, 1, 2, 4, 5, 3])
+           - t3.transpose([0, 1, 2, 5, 4, 3])
+           + t3
+           - t3.transpose([0, 1, 2, 4, 3, 5])
+           + t3.transpose([0, 2, 1, 3, 5, 4])
+           - t3.transpose([0, 2, 1, 4, 5, 3])
+           + t3.transpose([2, 1, 0, 5, 4, 3])
+           - t3.transpose([2, 1, 0, 5, 3, 4])) / 6
+    test_amps=Tensors(t1=t1, t2=t2, t3=t3s)
+    r=cc.calc_residuals(h, test_amps)
 
     # converged, energy, amps = step_solver(
     #     cc, amps=test_amps, conv_tol_energy=1e-14, use_optimizer='momentum',
     #     optimizer_kwargs=dict(beta=0.6, alpha=0.01),
     #     max_cycle=300)
-    converged, energy, amps = classic_solver(
-        cc, amps=test_amps,
+    converged, energy, amps=classic_solver(
+        cc, conv_tol_energy=1e-12,
         max_cycle=300)
 
     print('max r1: {}'.format(np.max(r.t1)))
@@ -242,5 +224,5 @@ def compare_to_aq():  # pragma: nocover
 
 
 if __name__ == '__main__':
-    # test_cc()
+    test_cc()
     compare_to_aq()
