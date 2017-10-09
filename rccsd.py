@@ -72,8 +72,7 @@ class RCCSD(CC):
     def solve_amps(self, h, a, g):
         """
         Solving for new T amlitudes using RHS and denominator
-        It is assumed that the order of fields in the RHS
-        is consistent with the order in amplitudes
+        tensor
         """
 
         def multiply_by_inverse(x):

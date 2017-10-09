@@ -61,14 +61,13 @@ def _assemble_uhf_fock(cc, mos=None):
             np.array((mos.a.mo_occ, mos.b.mos_occ)))
     nocca = mos.a.nocc
     noccb = mos.b.nocc
-    f = Tensors(a=Tensors(oo=ref_ndarray(fock[0][:nocca, :nocca]),
+    return  Tensors(a=Tensors(oo=ref_ndarray(fock[0][:nocca, :nocca]),
                           ov=ref_ndarray(fock[0][:nocca, nocca:]),
                           vv=ref_ndarray(fock[0][nocca:, nocca:])),
                 b=Tensors(oo=ref_ndarray(fock[1][:noccb, :noccb]),
                           ov=ref_ndarray(fock[1][:noccb, noccb:]),
                           vv=ref_ndarray(fock[1][noccb:, noccb:])),
     )
-    return f
 
 
 
@@ -85,63 +84,81 @@ def _assemble_fock(cc, mos=None):
 
 
 
-def _assemble_moeri_full_core_mul(scf, mos):
-    """
-    Gets AO eris, transorms them to MO bases and returns relevant blocks
-    in Mulliken order
-    """
-    nocc = mos.nocc
-    nmo = mos.nmo
-    nvir = mos.nvir
-    
-    eri1 = ao2mo.incore.full(scf._eri, mos.mo_coeff)
+def _transform_aoeri(eri, mosa, mosb=None):
+    """Transfroms atomic integrals in Mulliken order, restores full arrays"""
+    nmo = mosa.nmo
 
-    # Restore first compression over symmetric indices
-    eri1 = ao2mo.restore(1, eri1, nmo)
-    return Tensors(oooo=ref_ndarray(eri1[:nocc, :nocc, :nocc, :nocc]),
-                     ooov=ref_ndarray(eri1[:nocc, :nocc, :nocc, nocc:]),
-                     oovv=ref_ndarray(eri1[:nocc, :nocc, nocc:, nocc:]),
-                     ovov=ref_ndarray(eri1[:nocc, nocc:, :nocc, nocc:]),
-                     voov=ref_ndarray(eri1[nocc:, :nocc, :nocc, nocc:]),
-                     ovvv=ref_ndarray(eri1[:nocc, nocc:, nocc:, nocc:]),
-                     vvvv=ref_ndarray(eri1[nocc:, nocc:, nocc:, nocc:])
+    if mosb is None:
+        eri = ao2mo.incore.full(eri, mosa.mo_coeff, compact=False)
+    else:
+        eri = ao2mo.incore.general(
+            eri,
+            [mosa.mo_coeff, mosa.mo_coeff, mosb.mo_coeff, mosb.mo_coeff],
+            compact=False)
+    # reshape to a 4-index tensor
+    eri = ao2mo.restore(8, eri, nmo)
+    
+    return eri
+
+
+def _extract_blocks_mul(eri, nocc1, nocc2):
+    """
+    Extracts only symmetrically unique blocks blocks
+    from Mulliken ordered integrals
+    """
+    return Tensors(oooo=ref_ndarray(eri[:nocc1, :nocc1, :nocc2, :nocc2]),
+                     ooov=ref_ndarray(eri[:nocc1, :nocc1, :nocc2, nocc2:]),
+                     oovv=ref_ndarray(eri[:nocc1, :nocc1, nocc2:, nocc2:]),
+                     ovov=ref_ndarray(eri[:nocc1, nocc1:, :nocc2, nocc2:]),
+                     voov=ref_ndarray(eri[nocc1:, :nocc1, :nocc2, nocc2:]),
+                     ovvv=ref_ndarray(eri[:nocc1, nocc1:, nocc2:, nocc2:]),
+                     vvvv=ref_ndarray(eri[nocc1:, nocc1:, nocc2:, nocc2:])
     )
 
 
-
-def _assemble_moeri_full_core_dir(scf, mos):
+def _extract_blocks_dir(eri, nocc1, nocc2):
     """
-    Gets AO eris, transorms them to MO bases and returns relevant blocks
-    in Dirac order
+    Extracts only symmetrically unique blocks blocks
+    from Dirac ordered integrals
     """
-    nocc = mos.nocc
-    nmo = mos.nmo
-    nvir = mos.nvir
-    
-    def mulliken_to_dirac(a):
-        return a.transpose(0, 2, 1, 3)
-
-    eri1 = ao2mo.incore.full(scf._eri, mos.mo_coeff)
-    
     # FIXME: need to clean up interaction to having only 7 partitions.
     # FIXME: this will involve fixing rccsd.py
-    # Restore first compression over symmetric indices
-    eri1 = mulliken_to_dirac(ao2mo.restore(1, eri1, nmo))
-    return Tensors(oooo=eri1[:nocc, :nocc, :nocc, :nocc],
-                   ooov=eri1[:nocc, :nocc, :nocc, nocc:],
-                   oovv=eri1[:nocc, :nocc, nocc:, nocc:],
-                   ovov=eri1[:nocc, nocc:, :nocc, nocc:],
-                   voov=eri1[nocc:, :nocc, :nocc, nocc:],
-                   ovvv=eri1[:nocc, nocc:, nocc:, nocc:],
-                   vvvv=eri1[nocc:, nocc:, nocc:, nocc:],
-                   ovvo=eri1[:nocc, nocc:, nocc:, :nocc],
-                   vvov=eri1[nocc:, nocc:, :nocc, nocc:],
-                   vvoo=eri1[nocc:, nocc:, :nocc, :nocc],
-                   ovoo=eri1[:nocc, nocc:, :nocc, :nocc],
-                   oovo=eri1[:nocc, :nocc, nocc:, :nocc],
-                   vvvo=eri1[nocc:, nocc:, nocc:, :nocc]
+    return Tensors(oooo=eri[:nocc1, :nocc2, :nocc1, :nocc2],
+                   ooov=eri[:nocc1, :nocc2, :nocc1, nocc2:],
+                   oovv=eri[:nocc1, :nocc2, nocc1:, nocc2:],
+                   ovov=eri[:nocc1, nocc2:, :nocc1, nocc2:],
+                   voov=eri[nocc1:, :nocc2, :nocc1, nocc2:],
+                   ovvv=eri[:nocc1, nocc2:, nocc1:, nocc2:],
+                   vvvv=eri[nocc1:, nocc2:, nocc1:, nocc2:],
+                   ovvo=eri[:nocc1, nocc2:, nocc1:, :nocc2],
+                   vvov=eri[nocc1:, nocc2:, :nocc1, nocc2:],
+                   vvoo=eri[nocc1:, nocc2:, :nocc1, :nocc2],
+                   ovoo=eri[:nocc1, nocc2:, :nocc1, :nocc2],
+                   oovo=eri[:nocc1, :nocc2, nocc1:, :nocc2],
+                   vvvo=eri[nocc1:, nocc2:, nocc1:, :nocc2]
     )
 
+
+    
+def _assemble_moeri_full_core(scf, mosa, mosb=None, order='mul'):
+    """
+    Gets AO eris, transorms them to MO bases and returns relevant blocks
+    in a selected order
+    """
+    nocc1 = mosa.nocc
+    nmo = mosa.nmo
+    import pdb
+    pdb.set_trace()
+    if mosb is None:
+        nocc2 = nocc1
+    else:
+        nocc2 = mob.nocc
+    eri = _transform_aoeri(scf._eri, mosa, mosb)
+
+    if order == 'mul':
+        return _extract_blocks_mul(eri, nocc1, nocc2)
+    elif order == 'dir':
+        return _extract_blocks_dir(eri.transpose((0, 2, 1, 3)), nocc1, nocc2)
 
 
 def _assemble_moeri_ri_core(scf, mos):
@@ -150,14 +167,13 @@ def _assemble_moeri_ri_core(scf, mos):
     and takes relevant blocks
     """
 
-    nocc = mos.nocc
-    nmo = mos.nmo
-    nvir = mos.nvir
+    nocc = mosa.nocc
+    nmo = mosa.nmo
 
     naux = scf.with_df.get_naoaux()
     Lpnn = np.empty((naux, nmo, nmo))
 
-    mof = np.asarray(mos.mo_coeff, order='F')
+    mof = np.asarray(mosa.mo_coeff, order='F')
     ijslice = (0, nmo, 0, nmo)
     Lpq = None
     pq = 0
@@ -171,57 +187,58 @@ def _assemble_moeri_ri_core(scf, mos):
     return Tensors(poo=ref_ndarray(Lpnn[:, :nocc, :nocc]),
                    pov=ref_ndarray(Lpnn[:, :nocc, nocc:]),
                    pvv=ref_ndarray(Lpnn[:, nocc:, nocc:]),
-                   pvo=ref_ndarray(Lpnn[:, nocc:, :nocc])
+                   pvo=ref_ndarray(Lpnn[:, nocc:, :nocc])                        
     )
+        
+
+def _create_hub_aoeri(u, nao):
+    """
+    Creates Hubbard interaction in the on-site basis
+    It is fully symmetric (by definition)
+    """
+    eri = np.zeros((nao, nao, nao, nao))
+    for i in range(nao):
+        eri[i, i, i, i] = u
+    eri = ao2mo.restore(8, eri, nao)
+
+    return eri
 
 
-
-def _assemble_moeri_full_core_hub(scf, mos):
+def _assemble_moeri_full_core_hub(scf, mosa, mosb=None, order='mul'):
     """
     Builds on-site eris, transforms them to MO basis,
     returns relevant blocks
     """
-    nocc = mos.nocc
-    nmo = mos.nmo
-    nao = mos.mo_coeff.shape[0]
+    nocc = mosa.nocc
+    nmo = mosa.nmo
+
+    nao = mosa.mo_coeff.shape[0]
 
     u = scf._hubbard_interaction
+    eri = _create_hub_aoeri(u, nao)
+    
+    if mosb is None:
+        nocc2 = nocc1
+    else:
+        nocc2 = mob.nocc
 
-    eri1 = np.zeros((nao, nao, nao, nao))
-    for i in range(nao):
-        eri1[i, i, i, i] = u
-    eri1 = ao2mo.restore(8, eri1, nao)
-    eri1 = ao2mo.incore.full(eri1, mos.mo_coeff, compact=False)
-    eri1 = ao2mo.restore(1, eri1, nmo)
+    eri = _transform_aoeri(eri, mosa, mosb)
 
-    # FIXME: need to clean up interaction to having only 7 partitions.
-    # FIXME: this will involve fixing rccsd.py
-    # Restore first compression over symmetric indices
-    return Tensors(oooo=eri1[:nocc, :nocc, :nocc, :nocc],
-                   ooov=eri1[:nocc, :nocc, :nocc, nocc:],
-                   oovv=eri1[:nocc, :nocc, nocc:, nocc:],
-                   ovov=eri1[:nocc, nocc:, :nocc, nocc:],
-                   voov=eri1[nocc:, :nocc, :nocc, nocc:],
-                   ovvv=eri1[:nocc, nocc:, nocc:, nocc:],
-                   vvvv=eri1[nocc:, nocc:, nocc:, nocc:],
-                   ovvo=eri1[:nocc, nocc:, nocc:, :nocc],
-                   vvov=eri1[nocc:, nocc:, :nocc, nocc:],
-                   vvoo=eri1[nocc:, nocc:, :nocc, :nocc],
-                   ovoo=eri1[:nocc, nocc:, :nocc, :nocc],
-                   oovo=eri1[:nocc, :nocc, nocc:, :nocc],
-                   vvvo=eri1[nocc:, nocc:, nocc:, :nocc]
-    )
+    if order == 'mul':
+        return _extract_blocks_mul(eri, nocc1, nocc2)
+    elif order == 'dir':
+        return _extract_blocks_dir(eri.transpose((0, 2, 1, 3)), nocc1, nocc2)
+    else:
+        raise ValueError('Indorrect order: {}'.format(order))
 
 
-
-def _assemble_moeri_ri_core_hub(scf, mos):
+def _assemble_moeri_ri_core_hub(scf, mosa, mosb=None):
     """
     Builds RI decomposed Hubbard interaction, transforms it to MO basis
     and returns relevant blocks
     """
-    nocc = mos.nocc
-    nmo = mos.nmo
-    nvir = mos.nvir
+    nocc = mosa.nocc
+    nmo = mosa.nmo
 
     from tcc.utils import khatrirao
     from math import sqrt
@@ -235,8 +252,8 @@ def _assemble_moeri_ri_core_hub(scf, mos):
 
     Lpnn = u12 * np.reshape(
         np.transpose(khatrirao(
-            (np.conj((mos.mo_coeff).T),
-             mos.mo_coeff.T)
+            (np.conj((mosa.mo_coeff).T),
+             mosa.mo_coeff.T)
         )), (nmo, nmo, nmo)
     )
     
@@ -247,19 +264,19 @@ def _assemble_moeri_ri_core_hub(scf, mos):
 
 
 
-def _assemble_moeri_thc_core_hub(scf, mos):
+def _assemble_moeri_thc_core_hub(scf, mosa, mosb=None):
     """
     Builds THC integrals analytically, transfroms them to MO basis,
     returns blocked structure
     """
 
-    nocc = mos.nocc
-    nao = mos.mo_coeff.shape[0]
+    nocc = mosa.nocc
+    nao = mosa.mo_coeff.shape[0]
 
     # Build THC integrals analytically
 
     u = scf._hubbard_interaction
-    CT = (mos.mo_coeff) # Why was it done this way?
+    CT = (mosa.mo_coeff) # Why was it done this way?
     
     return Tensors(x1=Tensors(CT[:nocc, :], CT[nocc:, :]),
                      x2=Tensors(CT[:nocc, :], CT[nocc:, :]),
@@ -288,7 +305,7 @@ class HAM_SPINLESS_FULL_CORE_MUL:
         self.f = _assemble_fock(cc, mos)
 
         if (cc._scf._eri is not None):
-            self.v = _assemble_moeri_full_core_mul(cc._scf, self.mos)
+            self.v = _assemble_moeri_full_core(cc._scf, self.mos, order='mul')
         else:
             raise ValueError('SCF object did not supply AO integrals')
 
@@ -321,7 +338,7 @@ class HAM_SPINLESS_FULL_CORE_DIR:
             self.mos = mos
 
         if (cc._scf._eri is not None):
-            self.v = _assemble_moeri_full_core_dir(cc._scf, self.mos)
+            self.v = _assemble_moeri_full_core(cc._scf, self.mos, order='dir')
         else:
             raise ValueError('SCF object did not supply AO integrals')
 
@@ -359,7 +376,7 @@ class HAM_SPINLESS_FULL_CORE_HUBBARD:
     Creates real full Hubbard interaction in MO basis
     """
 
-    def __init__(self, cc, mos=None):
+    def __init__(self, cc, mos=None, order='mul'):
         cput0 = (time.clock(), time.time())
         log = logger.Logger(cc.stdout, cc.verbose)
 
@@ -375,8 +392,7 @@ class HAM_SPINLESS_FULL_CORE_HUBBARD:
         # Build Hubbard integrals analytically
 
         if hasattr(cc._scf, '_hubbard_interaction'):
-            self.v = _assemble_moeri_full_core_hub(cc._scf, self.mos)
-
+            self.v = _assemble_moeri_full_core_hub(cc._scf, self.mos, order=order)
         else:
             raise ValueError('SCF object did not supply Hubbard interaction')
 
@@ -452,7 +468,6 @@ class _HAM_SPINLESS_FULL_CORE_DIR_MATFILE:
         self.mos = cc.mos
         nocc = self.mos.nocc
         nmo = self.mos.nmo
-        nvir = self.mos.nvir
 
         from scipy.io import loadmat
         from os.path import isfile
@@ -471,18 +486,7 @@ class _HAM_SPINLESS_FULL_CORE_DIR_MATFILE:
             eri1 = loadmat(filename, variable_names=('Imo'),
                            matlab_compatible=True)['Imo']
 
-            self.v = Tensors(oooo=eri1[:nocc, :nocc, :nocc, :nocc],
-                             ooov=eri1[:nocc, :nocc, :nocc, nocc:],
-                             oovv=eri1[:nocc, :nocc, nocc:, nocc:],
-                             ovov=eri1[:nocc, nocc:, :nocc, nocc:],
-                             voov=eri1[nocc:, :nocc, :nocc, nocc:],
-                             ovvv=eri1[:nocc, nocc:, nocc:, nocc:],
-                             vvvv=eri1[nocc:, nocc:, nocc:, nocc:],
-                             ovvo=eri1[:nocc, nocc:, nocc:, :nocc],
-                             vvov=eri1[nocc:, nocc:, :nocc, nocc:],
-                             vvoo=eri1[nocc:, nocc:, :nocc, :nocc],
-                             ovoo=eri1[:nocc, nocc:, :nocc, :nocc]
-            )
+            self.v = _extract_blocks_dir(eri1, nocc, nocc)
         else:
             raise ValueError('File not found: {}'.format(filename))
 
@@ -541,3 +545,90 @@ class _HAM_SPINLESS_THC_CORE_MATFILE:
             raise ValueError('File not found: {}'.format(filename))
 
         log.timer('CCSD integral transformation', *cput0)
+
+        
+class HAM_UHF_FULL_CORE_MUL:
+    """
+    Mulliken ordered hamiltonian
+    """
+
+    def __init__(self, cc, mos=None):
+        cput0 = (time.clock(), time.time())
+        log = logger.Logger(cc.stdout, cc.verbose)
+
+        # Get mos
+        if mos is None:
+            self.mos = cc.mos
+        else:
+            self.mos = mos
+
+        # Add Fock matrix
+        self.f = _assemble_fock(cc, mos)
+
+        if (cc._scf._eri is not None):
+            self.v.aaaa = _assemble_moeri_full_core(cc._scf, self.mos.a, order='mul')
+            self.v.bbbb = _assemble_moeri_full_core(cc._scf, self.mos.b, order='mul')
+            self.v.aabb = _assemble_moeri_full_core(cc._scf, self.mos.a, self.mos.b, order='mul')
+        else:
+            raise ValueError('SCF object did not supply AO integrals')
+
+        log.timer('CCSD integral transformation', *cput0)
+
+
+class HAM_UHF_FULL_CORE_DIR:
+    """
+    Mulliken ordered hamiltonian
+    """
+
+    def __init__(self, cc, mos=None):
+        cput0 = (time.clock(), time.time())
+        log = logger.Logger(cc.stdout, cc.verbose)
+
+        # Get mos
+        if mos is None:
+            self.mos = cc.mos
+        else:
+            self.mos = mos
+
+        # Add Fock matrix
+        self.f = _assemble_fock(cc, mos)
+
+        if (cc._scf._eri is not None):
+            self.v.aaaa = _assemble_moeri_full_core(cc._scf, self.mos.a, order='dir')
+            self.v.bbbb = _assemble_moeri_full_core(cc._scf, self.mos.b, order='dir')
+            self.v.abab = _assemble_moeri_full_core(cc._scf, self.mos.a, self.mos.b, order='dir')
+        else:
+            raise ValueError('SCF object did not supply AO integrals')
+
+        log.timer('CCSD integral transformation', *cput0)
+
+
+class HAM_UHF_RI_CORE:
+    """
+    Mulliken ordered hamiltonian
+    """
+
+    def __init__(self, cc, mos=None):
+        cput0 = (time.clock(), time.time())
+        log = logger.Logger(cc.stdout, cc.verbose)
+
+        # Get mos
+        if mos is None:
+            self.mos = cc.mos
+        else:
+            self.mos = mos
+
+        # Add Fock matrix
+        self.f = _assemble_fock(cc, mos)
+
+        if (cc._scf._eri is not None):
+            
+            ints_a = _assemble_moeri_ri_core(cc._scf, self.mos.a)
+            ints_b = _assemble_moeri_ri_core(cc._scf, self.mos.b)
+            self.l = Tensors(a=ints_a, b=ints_b)
+        else:
+            raise ValueError('SCF object did not supply AO integrals')
+
+        log.timer('CCSD integral transformation', *cput0)
+
+
