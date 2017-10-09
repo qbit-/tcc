@@ -138,7 +138,7 @@ def ncpd_rebuild(norm_factors):
 
 
 def cpd_contract_free_cpd(factors_top, factors_bottom,
-                          conjugate=False, exclude_mode=None):
+                          conjugate=False, skip_factor=None):
       """
       Contract "external" indices of two CPD decomposed tensors
       :param factors_top: iterable with CPD decomposition
@@ -155,14 +155,13 @@ def cpd_contract_free_cpd(factors_top, factors_bottom,
       >>> t1 = cpd_rebuild(k1)
       >>> t2 = cpd_rebuild(k2)
       >>> s1 = t1.conj().flatten().dot(t2.flatten()[None].T)
-      >>> s2 = np.sum(cpd_contract_free_cpd(k1, k2), conjugate=True)
+      >>> s2 = np.sum(cpd_contract_free_cpd(k1, k2, conjugate=True))
       >>> np.allclose(s1, s2)
       True
 
       """
 
       from functools import reduce
-      from itertools import izip
 
       if skip_factor is not None:
           factors_top = [factors_top[ii]
@@ -177,7 +176,7 @@ def cpd_contract_free_cpd(factors_top, factors_bottom,
           
       s = reduce(lambda x, y: x * y,
                  map(lambda x: x[0].T.dot(x[1]),
-                     izip(factors_top, factors_bottom)))
+                     zip(factors_top, factors_bottom)))
 
       return s
 

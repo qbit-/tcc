@@ -145,7 +145,7 @@ def test_cc():   # pragma: nocover
         cc, conv_tol_energy=1e-8,
         max_cycle=100)
 
-    print('dE: {}'.format(energy - -1.304876e-01)
+    print('dE: {}'.format(energy - -1.304876e-01))
 
 
 

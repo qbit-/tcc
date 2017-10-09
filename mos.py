@@ -1,12 +1,12 @@
 import numpy
 
 """
-This module implements evarything related to the MO transformation
+This module implements everything related to the MO transformation
 matrix
 """
 
 
-class SPINLESS_MOS(object):
+class SPINLESS_MOS():
     """
     Convenience class for molecular orbitals and
     their various blocks
@@ -204,3 +204,69 @@ class SPINLESS_MOS(object):
         Returns occupation numbers for all orbitals
         """
         return self._mo_occ_full
+
+class UHF_MOS():
+    """
+    This class implements molecular orbitals with explicit spin labels (UHF case)
+    This is just a wrapper for the SPINLESS_MOS class
+
+    :param mo_coeff: MO coefficients (ndarray of shape (2, N_basis, N_mos))
+    :param mo_energy: HF energies of MO coefficients (ndarray of shape (2, N_mos))
+    :param mo_occ: MO occupation numbers (ndarray of shape (2, N_mos))
+    :param frozen: frozen orbitals. If int, freeze # of frozen orbitals, if vector
+    of ints, freeze selected orbitals, if ndarray of shape (2, *)
+    freese selected orbitals for alpha and beta. Default None.
+
+    >>> import numpy as np
+    >>> m = UHF_MOS(np.random.rand(2,4,3), np.ones((2, 3)), np.vstack(([2, 2, 0], [2, 2, 0])))
+    >>> m.a.nocc
+    2
+    >>> m.b.nvir
+    1
+    >>> m.a.nmo
+    3
+    """
+
+    def __init__(self, mo_coeff, mo_energy, mo_occ, frozen=None):
+        mo_coeff_full = numpy.asarray(mo_coeff)
+        mo_energy_full = numpy.asarray(mo_energy)
+        mo_occ_full = numpy.asarray(mo_occ)
+
+        # Check arguments
+        if len(mo_coeff_full.shape) != 3:
+            raise ValueError('Wrong shape of MO coefficients: {}'.format(
+                mo_coeff_full.shape))
+        for arr in [mo_energy_full, mo_occ_full]:
+            if len(arr) != 2:
+                raise ValueError('Wrong shape of MO energies/occupations: {}'.format(
+                    arr.shape))
+
+        if frozen is not None:
+            if isinstance(frozen, (int, numpy.integer)):
+                freeze_a = np.asarray(range(frozen))
+                freeze_b = np.asarray(range(frozen))
+            else:
+                ff = numpy.asarray(frozen)
+                if len(ff.shape) == 1:
+                    freeze_a = ff
+                    freeze_b = ff
+                elif len(ff.shape) == 2:
+                    freeze_a = ff[0, :]
+                    freeze_b = ff[1, :]
+                else:
+                    raise ValueError(
+                        'Wrong frozen vector shape: {}'.format(ff.shape))
+        else:
+            freeze_a = None
+            freeze_b = None
+
+        # Set occupied_index
+        self.a = SPINLESS_MOS(mo_coeff_full[0, :],
+                              mo_energy_full[0, :],
+                              mo_occ_full[0, :],
+                              freeze_a)
+        self.b = SPINLESS_MOS(mo_coeff_full[1, :],
+                              mo_energy_full[1, :],
+                              mo_occ_full[1, :],
+                              freeze_b)
+

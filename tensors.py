@@ -209,10 +209,11 @@ def to_shallow_dict_items(d, join=add, lift=lambda x:x):
     on 24/09/2017
     
     >>> testData = {'a':1, 'b':2, 'c':{'aa':11, 'bb':22, 'cc':{'aaa':111}}}
-    >>> print(dict( to_shallow_dict_items(testData, lift=lambda x:(x,)) ))
-    {('c', 'cc', 'aaa'): 111, ('c', 'bb'): 22, ('b',): 2, ('c', 'aa'): 11, ('a',): 1}
-    >>> print(dict( to_shallow_dict_items(testData, join=lambda a, b:a+'.'+b) ))
-    {'b': 2, 'a': 1, 'c.aa': 11, 'c.bb': 22, 'c.cc.aaa': 111}
+    >>> from collections import OrderedDict
+    >>> print(OrderedDict(sorted(to_shallow_dict_items(testData, lift=lambda x:(x,)) )))
+    OrderedDict([(('a',), 1), (('b',), 2), (('c', 'aa'), 11), (('c', 'bb'), 22), (('c', 'cc', 'aaa'), 111)])
+    >>> print(OrderedDict(sorted(to_shallow_dict_items(testData, join=lambda a, b:a+'.'+b))))
+    OrderedDict([('a', 1), ('b', 2), ('c.aa', 11), ('c.bb', 22), ('c.cc.aaa', 111)])
     """
     results = []
     def visit(subdict, results, partialKey):

@@ -29,7 +29,7 @@ def khatrirao(matrices, skip_matrix=None, reverse=False):
         i.e. the product of the number of rows of all the matrices in the product.
 
     >>> import numpy as np
-    >>> a = np.array([[1,3],[2,4]])
+    >>> a = np.array([[1.,3.],[2.,4.]])
     >>> b = np.array([[5,6],[7,8],[9,10]])
     >>> np.sum(khatrirao((a,b), reverse=True), 1)[2]
     31.0

@@ -5,7 +5,7 @@ from tcc.cc_solvers import CC
 from tcc.denom import cc_denom
 from collections import namedtuple
 from types import SimpleNamespace
-from thc import thc_rebuild, thc_contract_thc, thc_initialize
+from tcc.thc import thc_rebuild, thc_contract_thc, thc_initialize
 
 from tcc._rccsd_thc_ls import (gen_energy, gen_R1,
                                gen_RY1, gen_RY2,

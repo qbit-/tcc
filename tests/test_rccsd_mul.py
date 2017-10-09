@@ -27,16 +27,17 @@ class TestRCCSD_MULModule(unittest.TestCase):
         from tcc.rccsd_mul import RCCSD_MUL
 
         cc = RCCSD_MUL(self.rhf)
-        converged, energy, amps = classic_solver(cc)
+        converged, energy, amps = classic_solver(cc, conv_tol_amps=1e-8,
+                                                 conv_tol_energy=1e-8)
 
         self.assertEqual(converged, True)
         self.assertEqual(np.allclose(energy,
-                                     -0.049466312886728606, 1e-5), True)
-
+                                     -0.049467456410677929, 1e-5), True)
+        cc._converged = False
         converged, energy1, _ = residual_diis_solver(cc, amps=amps,
                                                      conv_tol_energy=1e-10)
         self.assertEqual(np.allclose(
-            energy, -0.049466312886728606, 1e-5), True)
+            energy, -0.049467456410677929, 1e-5), True)
 
     def test_rccsd_mul_ri(self):
         from pyscf import gto
@@ -57,10 +58,11 @@ class TestRCCSD_MULModule(unittest.TestCase):
         from tcc.rccsd_mul import RCCSD_MUL_RI
         cc = RCCSD_MUL_RI(rhfri)
 
-        converged, energy, _ = classic_solver(cc)
+        converged, energy, _ = classic_solver(
+            cc, conv_tol_amps=1e-8, conv_tol_energy=1e-8)
 
         self.assertEqual(np.allclose(
-            energy, -0.049398255827842984, 1e-6), True)
+            energy, -0.049399404240317468, 1e-6), True)
 
     def test_rccsd_mul_hub_ri(self):
         from pyscf import scf
