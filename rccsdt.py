@@ -1,5 +1,4 @@
 import numpy as np
-from numpy import einsum
 from tcc.denom import cc_denom
 from tcc.cc_solvers import CC
 from tcc.tensors import Tensors
@@ -148,54 +147,53 @@ def test_cc():   # pragma: nocover
     print('dE: {}'.format(energy - -1.304876e-01))
 
 
-
-def compare_to_aq():  # pragma: nocover
+def test_compare_to_aq():  # pragma: nocover
     from pyscf import gto
     from pyscf import scf
-    mol=gto.Mole()
-    mol.atom=[
+    mol = gto.Mole()
+    mol.atom = [
         [8, (0., 0., 0.)],
         [1, (0.,  -0.757, 0.587)],
         [1, (0., 0.757, 0.587)]]
-    mol.basis={'H': '3-21g',
+    mol.basis = {'H': '3-21g',
                  'O': '3-21g', }
     mol.build()
-    rhf=scf.RHF(mol)
+    rhf = scf.RHF(mol)
     rhf.scf()  # -76.0267656731
 
     # load reference arrays
     import h5py
     import numpy as np
-    f1=h5py.File('data/test_references/aq_ccsdt_amps.h5', 'r')
+    f1 = h5py.File('data/test_references/aq_ccsdt_amps.h5', 'r')
     # use amplitudes from the last iteration
-    num_steps=int(len(f1.keys()) / 4)
-    t1=f1['t1_' + str(num_steps)][()].T
-    t2=f1['t2_' + str(num_steps)][()].T
-    t3=f1['t3_' + str(num_steps)][()].T
-    t3a=f1['t3b_' + str(num_steps)][()].T
+    num_steps = int(len(f1.keys()) / 4)
+    t1 = f1['t1_' + str(num_steps)][()].T
+    t2 = f1['t2_' + str(num_steps)][()].T
+    t3 = f1['t3_' + str(num_steps)][()].T
+    t3a = f1['t3b_' + str(num_steps)][()].T
     f1.close()
 
-    f1=h5py.File('data/test_references/aq_ccsdt_mos.h5', 'r')
-    CA=np.hstack((f1['cI'][()].T, f1['cA'][()].T))
-    CB=np.hstack((f1['ci'][()].T, f1['ca'][()].T))
+    f1 = h5py.File('data/test_references/aq_ccsdt_mos.h5', 'r')
+    CA = np.hstack((f1['cI'][()].T, f1['cA'][()].T))
+    CB = np.hstack((f1['ci'][()].T, f1['ca'][()].T))
     f1.close()
 
     # permute AO indices to match pyscf order
     from tcc.utils import perm_matrix
-    perm=[0, 1, 2, 4, 5, 3, 7, 8, 6, 9, 10, 11, 12]
-    m=perm_matrix(perm)
-    CA_perm=m.dot(CA)
+    perm = [0, 1, 2, 4, 5, 3, 7, 8, 6, 9, 10, 11, 12]
+    m = perm_matrix(perm)
+    CA_perm = m.dot(CA)
 
     from tcc.cc_solvers import residual_diis_solver
     from tcc.cc_solvers import (step_solver, classic_solver,
                                 residual_diis_solver)
     from tcc.rccsdt import RCCSDT
     from tcc.rccsd import RCCSD
-    cc=RCCSDT(rhf, mo_coeff=CA_perm)
+    cc = RCCSDT(rhf, mo_coeff=CA_perm)
 
     from tcc.tensors import Tensors
-    h=cc.create_ham()
-    t3s=(+ t3
+    h = cc.create_ham()
+    t3s = (+ t3
            - t3.transpose([0, 1, 2, 4, 3, 5])
            + t3.transpose([0, 1, 2, 5, 3, 4])
            - t3.transpose([0, 1, 2, 3, 5, 4])
@@ -207,14 +205,14 @@ def compare_to_aq():  # pragma: nocover
            - t3.transpose([0, 2, 1, 4, 5, 3])
            + t3.transpose([2, 1, 0, 5, 4, 3])
            - t3.transpose([2, 1, 0, 5, 3, 4])) / 6
-    test_amps=Tensors(t1=t1, t2=t2, t3=t3s)
-    r=cc.calc_residuals(h, test_amps)
+    test_amps = Tensors(t1=t1, t2=t2, t3=t3s)
+    r = cc.calc_residuals(h, test_amps)
 
     # converged, energy, amps = step_solver(
     #     cc, amps=test_amps, conv_tol_energy=1e-14, use_optimizer='momentum',
     #     optimizer_kwargs=dict(beta=0.6, alpha=0.01),
     #     max_cycle=300)
-    converged, energy, amps=classic_solver(
+    converged, energy, amps = classic_solver(
         cc, conv_tol_energy=1e-12,
         max_cycle=300)
 
@@ -225,4 +223,4 @@ def compare_to_aq():  # pragma: nocover
 
 if __name__ == '__main__':
     test_cc()
-    compare_to_aq()
+    test_compare_to_aq()

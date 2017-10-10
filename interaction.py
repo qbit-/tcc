@@ -547,12 +547,13 @@ class HAM_UHF_FULL_CORE_MUL:
         self.f = _assemble_fock(cc, mos)
 
         if (cc._scf._eri is not None):
-            self.v.aaaa = _assemble_moeri_full_core(
-                cc._scf, self.mos.a, order='mul')
-            self.v.bbbb = _assemble_moeri_full_core(
-                cc._scf, self.mos.b, order='mul')
-            self.v.aabb = _assemble_moeri_full_core(
-                cc._scf, self.mos.a, self.mos.b, order='mul')
+            self.v = Tensors(
+                aaaa=_assemble_moeri_full_core(
+                    cc._scf, self.mos.a, order='mul'),
+                bbbb=_assemble_moeri_full_core(
+                    cc._scf, self.mos.b, order='mul'),
+                aabb=_assemble_moeri_full_core(
+                    cc._scf, self.mos.a, self.mos.b, order='mul'))
         else:
             raise ValueError('SCF object did not supply AO integrals')
 
@@ -578,12 +579,13 @@ class HAM_UHF_FULL_CORE_DIR:
         self.f = _assemble_fock(cc, mos)
 
         if (cc._scf._eri is not None):
-            self.v.aaaa = _assemble_moeri_full_core(
-                cc._scf, self.mos.a, order='dir')
-            self.v.bbbb = _assemble_moeri_full_core(
-                cc._scf, self.mos.b, order='dir')
-            self.v.abab = _assemble_moeri_full_core(
-                cc._scf, self.mos.a, self.mos.b, order='dir')
+            self.v = Tensors(
+                aaaa=_assemble_moeri_full_core(
+                    cc._scf, self.mos.a, order='dir'),
+                bbbb=_assemble_moeri_full_core(
+                    cc._scf, self.mos.b, order='dir'),
+                abab=_assemble_moeri_full_core(
+                    cc._scf, self.mos.a, self.mos.b, order='dir'))
         else:
             raise ValueError('SCF object did not supply AO integrals')
 

@@ -3,6 +3,10 @@ from tcc.cc_solvers import CC
 from tcc.denom import cc_denom
 
 from tcc.tensors import Tensors
+from tcc._uccsd_dir import (
+    _uccsd_calculate_energy,
+    _uccsd_calc_residuals
+)
 
 
 class UCCSD(CC):
@@ -47,11 +51,13 @@ class UCCSD(CC):
         """
         Calculate RCCSD energy
         """
+        return _uccsd_calculate_energy(h, a)
 
     def calc_residuals(self, h, a):
         """
         Calculates CC residuals for CC equations
         """
+        return _uccsd_calc_residuals(h, a)
 
     def update_rhs(self, h, a, r):
         """
@@ -63,6 +69,7 @@ class UCCSD(CC):
         Solving for new T amlitudes using RHS and denominator
         tensor
         """
+
 
 def test_cc():   # pragma: nocover
     from pyscf import gto
