@@ -23,7 +23,7 @@ def _uccsd_calculate_energy(h, a):
     )
 
     tau3 = (
-        2 * einsum("ia->ia", h.f_a.ov)
+        2 * einsum("ia->ia", h.f.a.ov)
         + 2 * einsum("bj,ijab->ia", a.t1.b, h.v.abab.oovv)
         - einsum("bj,jiba->ia", a.t1.a, tau2)
     )
@@ -34,7 +34,7 @@ def _uccsd_calculate_energy(h, a):
     )
 
     tau5 = (
-        2 * einsum("ia->ia", h.f_b.ov)
+        2 * einsum("ia->ia", h.f.b.ov)
         - einsum("bj,ijab->ia", a.t1.b, tau4)
     )
 
@@ -49,7 +49,6 @@ def _uccsd_calculate_energy(h, a):
 
 
 def _uccsd_calc_residuals(h, a):
-
     tau0 = (
         - einsum("iabc->iabc", h.v.aaaa.ovvv)
         + einsum("iacb->iabc", h.v.aaaa.ovvv)
@@ -92,7 +91,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau8 = (
-        2 * einsum("ia->ia", h.f_a.ov)
+        2 * einsum("ia->ia", h.f.a.ov)
         + 2 * einsum("ia->ia", tau6)
         + einsum("ia->ia", tau7)
     )
@@ -120,7 +119,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau13 = (
-        2 * einsum("ia->ia", h.f_b.ov)
+        2 * einsum("ia->ia", h.f.b.ov)
         + 2 * einsum("ia->ia", tau10)
         + einsum("ia->ia", tau12)
     )
@@ -136,7 +135,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau16 = (
-        einsum("ab->ab", h.f_a.vv)
+        einsum("ab->ab", h.f.a.vv)
         + einsum("ci,aibc->ab", a.t1.b, h.v.abab.vovv)
         - einsum("ci,iabc->ab", a.t1.a, tau15)
     )
@@ -154,7 +153,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau19 = (
-        4 * einsum("ij->ij", h.f_a.oo)
+        4 * einsum("ij->ij", h.f.a.oo)
         + 4 * einsum("ak,ikja->ij", a.t1.b, h.v.abab.ooov)
         + 4 * einsum("bakj,ikab->ij", a.t2.ab, h.v.abab.oovv)
         - einsum("kjab,ikba->ij", tau1, tau17)
@@ -206,7 +205,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau28 = (
-        einsum("ab->ab", h.f_b.vv)
+        einsum("ab->ab", h.f.b.vv)
         + einsum("ci,iacb->ab", a.t1.a, h.v.abab.ovvv)
         - einsum("ci,iabc->ab", a.t1.b, tau27)
     )
@@ -224,7 +223,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau31 = (
-        4 * einsum("ij->ij", h.f_b.oo)
+        4 * einsum("ij->ij", h.f.b.oo)
         + 4 * einsum("ak,kiaj->ij", a.t1.a, h.v.abab.oovo)
         + 4 * einsum("abkj,kiab->ij", a.t2.ab, h.v.abab.oovv)
         - einsum("kjab,ikba->ij", tau21, tau29)
@@ -235,7 +234,7 @@ def _uccsd_calc_residuals(h, a):
     r1_a = (
         einsum("bj,ajib->ai", a.t1.b, h.v.abab.voov)
         + einsum("cbji,ajbc->ai", a.t2.ab, h.v.abab.vovv)
-        + einsum("ai->ai", h.f_a.vo)
+        + einsum("ia->ai", h.f.a.ov.conj())
         + einsum("jabc,jicb->ai", tau0, tau1) / 2
         + einsum("jkba,ikjb->ai", tau2, tau4) / 4
         - einsum("bajk,ikjb->ai", a.t2.ab, tau5)
@@ -249,7 +248,7 @@ def _uccsd_calc_residuals(h, a):
     r1_b = (
         einsum("bj,jabi->ai", a.t1.a, h.v.abab.ovvo)
         + einsum("bcji,jabc->ai", a.t2.ab, h.v.abab.ovvv)
-        + einsum("ai->ai", h.f_b.vo)
+        + einsum("ia->ai", h.f.b.ov.conj())
         + einsum("jabc,jicb->ai", tau20, tau21) / 2
         + einsum("jkba,ikjb->ai", tau22, tau23) / 4
         - einsum("abjk,ikjb->ai", a.t2.ab, tau24)
@@ -414,7 +413,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau29 = (
-        4 * einsum("ab->ab", h.f_a.vv)
+        4 * einsum("ab->ab", h.f.a.vv)
         + 4 * einsum("ab->ab", tau25)
         - 4 * einsum("ab->ab", tau26)
         + einsum("ba->ab", tau27)
@@ -462,7 +461,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau39 = (
-        2 * einsum("ia->ia", h.f_a.ov)
+        2 * einsum("ia->ia", h.f.a.ov)
         + 2 * einsum("ia->ia", tau37)
         + einsum("ia->ia", tau38)
     )
@@ -566,7 +565,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau56 = (
-        4 * einsum("ij->ij", h.f_a.oo)
+        4 * einsum("ij->ij", h.f.a.oo)
         + 4 * einsum("ij->ij", tau51)
         + 4 * einsum("ji->ij", tau52)
         - einsum("ji->ij", tau53)
@@ -730,7 +729,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau87 = (
-        4 * einsum("ab->ab", h.f_b.vv)
+        4 * einsum("ab->ab", h.f.b.vv)
         + 4 * einsum("ab->ab", tau83)
         - 4 * einsum("ab->ab", tau84)
         + einsum("ab->ab", tau85)
@@ -789,7 +788,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau99 = (
-        2 * einsum("ia->ia", h.f_b.ov)
+        2 * einsum("ia->ia", h.f.b.ov)
         + 2 * einsum("ia->ia", tau97)
         + einsum("ia->ia", tau98)
     )
@@ -892,7 +891,7 @@ def _uccsd_calc_residuals(h, a):
     )
 
     tau116 = (
-        4 * einsum("ij->ij", h.f_b.oo)
+        4 * einsum("ij->ij", h.f.b.oo)
         + 4 * einsum("ij->ij", tau111)
         + 4 * einsum("ji->ij", tau112)
         - einsum("ji->ij", tau113)

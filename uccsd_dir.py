@@ -1,6 +1,6 @@
 import numpy as np
 from tcc.cc_solvers import CC
-from tcc.denom import cc_denom
+from tcc.denom import cc_denom_spin
 
 from tcc.tensors import Tensors
 from tcc._uccsd_dir import (
@@ -46,6 +46,23 @@ class UCCSD(CC):
         """
         Initialize amplitudes from interaction
         """
+        e_a_ai = cc_denom_spin(ham.f.a, ham.f.b, 1, 2, 'dir', 'full')
+        e_b_ai = cc_denom_spin(ham.f.a, ham.f.b, 0, 2, 'dir', 'full')
+
+        t1_a = ham.f.a.ov.transpose().conj() * (- e_a_ai)
+        t1_b = ham.f.b.ov.transpose().conj() * (- e_b_ai)
+
+        e_a_abij = cc_denom_spin(ham.f.a, ham.f.b, 2, 4, 'dir', 'full')
+        e_b_abij = cc_denom_spin(ham.f.a, ham.f.b, 0, 4, 'dir', 'full')
+
+        t2_aa = ham.v.aaaa.oovv.transpose([2, 3, 0, 1]).conj() * (- e_a_abij)
+        t2_bb = ham.v.aaaa.oovv.transpose([2, 3, 0, 1]).conj() * (- e_b_abij)
+
+        e_ab_abij = cc_denom_spin(ham.f.a, ham.f.b, 1, 4, 'dir', 'full')
+        t2_ab = ham.v.abab.oovv.transpose([2, 3, 0, 1]).conj() * (- e_ab_abij)
+        return Tensors(
+            t1=Tensors(a=t1_a, b=t1_b),
+            t2=Tensors(aa=t2_aa, bb=t2_bb, ab=t2_ab))
 
     def calculate_energy(self, h, a):
         """
@@ -63,6 +80,22 @@ class UCCSD(CC):
         """
         Updates right hand side of the CC equations, commonly referred as G
         """
+        return Tensors(
+            t1=Tensors(
+                a=r.t1.a - a.t1.a / cc_denom_spin(
+                    h.f.a, h.f.b, 1, 2, 'dir', 'full'),
+                b=r.t1.b - a.t1.b / cc_denom_spin(
+                    h.f.a, h.f.b, 0, 2, 'dir', 'full'),
+            ),
+            t2=Tensors(
+                aa=r.t2.aa - a.t2.aa / cc_denom_spin(
+                    h.f.a, h.f.b, 2, 4, 'dir', 'full'),
+                bb=r.t2.bb - a.t2.bb / cc_denom_spin(
+                    h.f.a, h.f.b, 0, 4, 'dir', 'full'),
+                ab=r.t2.ab - a.t2.ab / cc_denom_spin(
+                    h.f.a, h.f.b, 1, 4, 'dir', 'full')
+            )
+        )
 
     def solve_amps(self, h, a, g):
         """
