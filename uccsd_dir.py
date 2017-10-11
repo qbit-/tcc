@@ -88,9 +88,17 @@ class UCCSD(CC):
                     h.f.a, h.f.b, 0, 2, 'dir', 'full'),
             ),
             t2=Tensors(
-                aa=r.t2.aa - a.t2.aa / cc_denom_spin(
+                aa=r.t2.aa - 1 / 2 * (
+                    + a.t2.aa + a.t2.aa.transpose([1, 0, 3, 2])
+                    - a.t2.aa.transpose([1, 0, 2, 3])
+                    - a.t2.aa.transpose([0, 1, 3, 2]))
+                / cc_denom_spin(
                     h.f.a, h.f.b, 2, 4, 'dir', 'full'),
-                bb=r.t2.bb - a.t2.bb / cc_denom_spin(
+                bb=r.t2.bb - 1 / 2 * (
+                    + a.t2.bb + a.t2.bb.transpose([1, 0, 3, 2])
+                    - a.t2.bb.transpose([1, 0, 2, 3])
+                    - a.t2.bb.transpose([0, 1, 3, 2]))
+                / cc_denom_spin(
                     h.f.a, h.f.b, 0, 4, 'dir', 'full'),
                 ab=r.t2.ab - a.t2.ab / cc_denom_spin(
                     h.f.a, h.f.b, 1, 4, 'dir', 'full')
@@ -102,8 +110,71 @@ class UCCSD(CC):
         Solving for new T amlitudes using RHS and denominator
         tensor
         """
+        
+        # g2_aa = (+ g.t2.aa
+        #          + g.t2.aa.transpose([1, 0, 3, 2])
+        #          - g.t2.aa.transpose([0, 1, 3, 2])
+        #          - g.t2.aa.transpose([1, 0, 2, 3])) / 4
+        # g2_bb = (+ g.t2.bb
+        #          + g.t2.bb.transpose([1, 0, 3, 2])
+        #          - g.t2.bb.transpose([0, 1, 3, 2])
+        #          - g.t2.bb.transpose([1, 0, 2, 3])) / 4
+        g2_ab = (g.t2.ab + g.t2.ab.transpose([1, 0, 3, 2])) / 2
+
+        g2_aa = g.t2.aa
+        g2_bb = g.t2.bb
+        # g2_ab = g.t2.ab
+
+        return Tensors(
+            t1=Tensors(
+                a=g.t1.a * (- cc_denom_spin(
+                    h.f.a, h.f.b, 1, 2, 'dir', 'full')),
+                b=g.t1.b * (- cc_denom_spin(
+                    h.f.a, h.f.b, 0, 2, 'dir', 'full'))
+            ),
+            t2=Tensors(
+                aa=g2_aa * (- cc_denom_spin(
+                    h.f.a, h.f.b, 2, 4, 'dir', 'full')),
+                bb=g2_bb * (- cc_denom_spin(
+                    h.f.a, h.f.b, 0, 4, 'dir', 'full')),
+                ab=g2_ab * (- cc_denom_spin(
+                    h.f.a, h.f.b, 1, 4, 'dir', 'full')),
+            ))
+
+    def calculate_update(self, h, a):
+        """
+        Calculate approximate gradient of T
+        """
+        r = self.calc_residuals(h, a)
+        r2_aa = (+ r.t2.aa
+                 + r.t2.aa.transpose([1, 0, 3, 2])
+                 - r.t2.aa.transpose([0, 1, 3, 2])
+                 - r.t2.aa.transpose([1, 0, 2, 3])) / 4
+        r2_bb = (+ r.t2.bb
+                 + r.t2.bb.transpose([1, 0, 3, 2])
+                 - r.t2.bb.transpose([0, 1, 3, 2])
+                 - r.t2.bb.transpose([1, 0, 2, 3])) / 4
+        r2_ab = (r.t2.ab + r.t2.ab.transpose([1, 0, 3, 2])) / 2
+        dt = Tensors(t1=Tensors(a=r.t1.a, b=r.t1.b),
+                     t2=Tensors(aa=r2_aa, bb=r2_bb, ab=r2_ab))
+        return Tensors(
+            t1=Tensors(
+                a=r.t1 * (- cc_denom_spin(
+                    h.f.a, h.f.b, 1, 2, 'dir', 'full')),
+                b=g.t1 * (- cc_denom_spin(
+                    h.f.a, h.f.b, 0, 2, 'dir', 'full'))
+            ),
+            t2=Tensors(
+                aa=g2_aa * (cc_denom_spin(
+                    h.f.a, h.f.b, 2, 4, 'dir', 'full')),
+                bb=g2_bb * (cc_denom_spin(
+                    h.f.a, h.f.b, 0, 4, 'dir', 'full')),
+                ab=g2_ab * (cc_denom_spin(
+                    h.f.a, h.f.b, 1, 4, 'dir', 'full')),
+            ))
 
 
+    
 def test_cc():   # pragma: nocover
     from pyscf import gto
     from pyscf import scf
@@ -113,12 +184,25 @@ def test_cc():   # pragma: nocover
         [1, (0., -0.757, 0.587)],
         [1, (0., 0.757, 0.587)]]
 
-    mol.basis = {'H': 'sto-3g',
-                 'O': 'sto-3g', }
+    mol.basis = {'H': '3-21g',
+                 'O': '3-21g', }
     mol.build()
     uhf = scf.UHF(mol)
     uhf.scf()  # -76.0267656731
+    rhf = scf.RHF(mol)
+    rhf.scf()  # -76.0267656731
 
     from tcc.uccsd_dir import UCCSD
-    cc = UCCSD(uhf)
-    h = cc.create_ham()
+    from tcc.rccsd import RCCSD
+    cc1 = UCCSD(uhf)
+    cc2 = RCCSD(rhf)
+
+    from tcc.cc_solvers import classic_solver
+
+    converged1, energy1, amps1 = classic_solver(
+        cc1, conv_tol_energy=1e-8,
+        max_cycle=100)
+
+    converged2, energy2, amps2 = classic_solver(
+        cc2, conv_tol_energy=1e-8,
+        max_cycle=100)

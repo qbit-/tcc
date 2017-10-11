@@ -105,13 +105,15 @@ class RCCSDT(CC):
 
     def calculate_update(self, h, a):
         """
-        Solving for new T amlitudes using RHS and denominator
+        Calculate approximate gradient of T
         """
         r = self.calc_residuals(h, a)
-        r3 = (r.t3 + r.t3.transpose([0, 1, 2, 5, 3, 4]) +
-              r.t3.transpose([0, 1, 2, 4, 5, 3]) + r.t3 +
-              r.t3.transpose([0, 2, 1, 3, 5, 4]) +
-              r.t3.transpose([2, 0, 1, 5, 3, 4])) / 3 *\
+        r3 = (+ r.t3
+              + r.t3.transpose([0, 1, 2, 5, 3, 4])
+              + r.t3.transpose([0, 1, 2, 4, 5, 3])
+              + r.t3
+              + r.t3.transpose([0, 2, 1, 3, 5, 4])
+              + r.t3.transpose([2, 0, 1, 5, 3, 4])) / 6 *\
             cc_denom(h.f, 6, 'dir', 'full')
 
         dt = Tensors(t1=r.t1, t2=r.t2, t3=r3)

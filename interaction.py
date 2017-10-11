@@ -132,7 +132,10 @@ def _extract_blocks_dir(eri, nocc1, nocc2):
                    vvoo=eri[nocc1:, nocc2:, :nocc1, :nocc2],
                    ovoo=eri[:nocc1, nocc2:, :nocc1, :nocc2],
                    oovo=eri[:nocc1, :nocc2, nocc1:, :nocc2],
-                   vvvo=eri[nocc1:, nocc2:, nocc1:, :nocc2]
+                   vvvo=eri[nocc1:, nocc2:, nocc1:, :nocc2],
+                   vovv=eri[nocc1:, :nocc2, nocc1:, nocc2:], # added for uccsd 
+                   vovo=eri[nocc1:, :nocc2, nocc1:, :nocc2], # |
+                   vooo=eri[nocc1:, :nocc2, :nocc1, :nocc2]  # |
                    )
 
 
