@@ -19,7 +19,7 @@ def cpd_initialize(ext_sizes, rank):
             for size in ext_sizes]
 
 
-def cpd_normalize(factors, sort=True, mergeout=False):
+def cpd_normalize(factors, sort=True, merge_lam=False):
     """
     Normalize the columns of factors to unit. The norms
     are returned in as ndarray
@@ -28,8 +28,9 @@ def cpd_normalize(factors, sort=True, mergeout=False):
         factor matrices
     :param sort: bool, optional
         default True
-    :param mergeout: bool, optional, default False
-        merge the output into single tuple, as in nCPD format
+    :param merge_lam: bool, optional, default False
+        merge lam and normalized factors into
+        a single tuple, as in nCPD format
 
     Returns
     -------
@@ -59,10 +60,50 @@ def cpd_normalize(factors, sort=True, mergeout=False):
         for idx, factor in enumerate(new_factors):
             new_factors[idx] = factor[:, order]
 
-    if mergeout:
+    if merge_lam:
         return (lam, ) + tuple(new_factors)
     else:
         return lam, tuple(new_factors)
+
+
+def ncpd_denormalize(factors, sort=True):
+    """
+    Normalize the columns of factors to unit. The norms
+    are returned in as ndarray
+
+    :param factors: ndarray iterable
+        factor matrices in ncpd format
+    :param sort: bool, if the factors are sorted by norm
+        default True
+
+    Returns
+    -------
+    lam: ndarray
+    factors: ndarray tuple  
+
+    >>> import numpy as np;
+    >>> k = cpd_initialize([2,2],3)
+    >>> kn = cpd_normalize(k, sort=False, merge_lam=True)
+    >>> kk = ncpd_denormalize(kn, sort=True)
+    >>> np.allclose(cpd_rebuild(k), cpd_rebuild(kk))
+    True
+
+    """
+
+    lam, new_factors = factors
+
+    if sort:
+        order = np.argsort(lam)[::-1]
+        lam = lam[order]
+
+        for idx, factor in enumerate(new_factors):
+            new_factors[idx] = factor[:, order]
+
+    lam_factor = np.power(lam, 1. / len(lam))
+    for idx, factor in enumerate(new_factors):
+        new_factors[idx] = np.dot(factor, np.diag(lam_factor))
+
+    return new_factors
 
 
 def ncpd_initialize(ext_sizes, rank):

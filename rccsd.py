@@ -92,7 +92,7 @@ class RCCSD(CC):
 
     def calculate_update(self, h, a):
         """
-        Solving for new T amlitudes using RHS and denominator
+        Calculate dt
         """
         r = self.calc_residuals(h, a)
 

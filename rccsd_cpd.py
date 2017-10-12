@@ -275,7 +275,97 @@ class RCCSD_CPD_LS_R2_W(RCCSD_CPD_LS_R2):
         names = ['x1', 'x2', 'x3', 'x4']
         return Tensors(t1=rt1, t2=Tensors(zip(names, resids)))
 
+    
+class RCCSD_nCPD_LS_T_UNF(CC):
+    """
+    This implements RCCSD with nCPD decomposed amplitudes.
+    We build nCPD factors to approximate amplitudes in the least squares sense.
+    For the next iteration we build full T1 and T2 residuals,
+    but use the structure of T2 and RI decomposed interaction. This
+    results in an N^5 algorithm.
+    """
+    
+    def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
+                 mo_occ=None, rankt=None):
+        """
+        Initialize RCCSD
+        :param rankt: rank of the CPD decomposition of amplitudes
+        """
+        # Simply copy some parameters from RHF calculation
+        super().__init__(mf)
 
+        # Initialize molecular orbitals
+
+        if mo_energy is None:
+            mo_energy = mf.mo_energy
+        if mo_coeff is None:
+            mo_coeff = mf.mo_coeff
+        if mo_occ is None:
+            mo_occ = mf.mo_occ
+
+        from tcc.mos import SPINLESS_MOS
+        self._mos = SPINLESS_MOS(mo_coeff, mo_energy, mo_occ, frozen)
+
+        # initialize sizes
+
+        if rankt is None:
+            self.rankt = np.min((self._mos.nocc, self._mos.nvir))
+        else:
+            self.rankt = rankt
+
+    def create_ham(self):
+        """
+        Create full Hamiltonian (in core)
+        """
+        from tcc.interaction import HAM_SPINLESS_RI_CORE
+        return HAM_SPINLESS_RI_CORE(self)
+
+    def init_amplitudes(self, ham):
+        """
+        Initialize amplitudes from interaction
+        """
+        e_ai = cc_denom(ham.f, 2, 'dir', 'full')
+        e_abij = cc_denom(ham.f, 4, 'dir', 'full')
+
+        t1 = 2 * ham.f.ov.transpose().conj() * (- e_ai)
+        v_vovo = einsum("pia,pjb->aibj", ham.l.pov, ham.l.pov).conj()
+
+        t2_full = 2 * v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
+        xs = cpd_normalize(parafac(t2_full, self.rankt), sort=True, mergeout=True)
+        xs_sym = ncpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
+
+        names = ['lam', 'x1', 'x2', 'x3', 'x4']
+        
+        return Tensors(t1=t1,
+                       t2=Tensors(zip(names, xs_sym)))
+    
+    def calc_residuals(self, h, a):
+        """
+        Calculates CC residuals for CC equations
+        """
+        return _rccsd_ncpd_ls_t_unf_calc_residuals(h, a)
+        
+    def calculate_energy(self, h, a):
+        """
+        Calculate RCCSD energy
+        Automatically generated
+        """
+        energy = _rccsd_ncpd_ls_t_unf_calculate_energy(h, a)
+        return energy
+
+
+    def calculate_update(self, h, a):
+        """
+        Calculate dt 
+        """
+        r = self.calc_residuals(h, a) # symmetrize a before feeding into res?
+        xs = (a.t2[key] for key in sorted(a.t2.keys()))
+        
+        dt1 = r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
+        dt2 = cpd_normalize(parafac(r.t2, self.rankt, n_iter_max=1, guess=xs))
+        # Need one ALS step for each factor (with updates for every other!).
+        # Need to adapt to ncpd format
+        
 def test_cc():   # pragma: nocover
     from pyscf import gto
     from pyscf import scf
