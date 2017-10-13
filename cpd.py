@@ -81,16 +81,16 @@ def ncpd_denormalize(factors, sort=True):
     lam: ndarray
     factors: ndarray tuple
 
-    >>> import numpy as np;
     >>> k = cpd_initialize([2,2],3)
     >>> kn = cpd_normalize(k, sort=False, merge_lam=True)
-    >>> kk = ncpd_denormalize(kn, sort=True)
+    >>> kk = ncpd_denormalize(kn, sort=False)
     >>> np.allclose(cpd_rebuild(k), cpd_rebuild(kk))
     True
 
     """
 
-    lam, new_factors = factors
+    lam = factors[0]
+    new_factors = list(factors[1:])
 
     if sort:
         order = np.argsort(lam)[::-1]
@@ -99,11 +99,50 @@ def ncpd_denormalize(factors, sort=True):
         for idx, factor in enumerate(new_factors):
             new_factors[idx] = factor[:, order]
 
-    lam_factor = np.power(lam, 1. / len(lam))
+    lam_factor = np.power(lam, 1. / len(new_factors))
     for idx, factor in enumerate(new_factors):
         new_factors[idx] = np.dot(factor, np.diag(lam_factor))
 
     return new_factors
+
+
+def ncpd_renormalize(factors, sort=True):
+    """
+    Normalizes the columns of factors in nCPD format, in
+    case the normalization was lost due to some operation on
+    the original factors.
+
+    :param factors: ndarray iterable
+        factor matrices in ncpd format
+    :param sort: bool, if the factors are sorted by norm
+        default True
+
+    Returns
+    -------
+    lam: ndarray
+    factors: ndarray tuple
+
+    >>> k = cpd_initialize([2,2],3)
+    >>> kn = cpd_normalize(k, merge_lam=True)
+    >>> kk = [np.ones(3), ] + k
+    >>> kt = ncpd_renormalize(kk)
+    >>> np.allclose(ncpd_rebuild(kt), ncpd_rebuild(kn))
+    True
+
+    """
+    old_lam = factors[0]
+    old_factors = list(factors[1:])
+    
+    lam, factors = cpd_normalize(old_factors, sort=sort, merge_lam=False)
+
+    if sort:
+        order = np.argsort(old_lam)[::-1]
+        old_lam = old_lam[order]
+
+    new_lam = old_lam * lam
+
+    return (new_lam, ) + factors
+
 
 
 def ncpd_initialize(ext_sizes, rank):
@@ -236,9 +275,9 @@ def ncpd_contract_free_ncpd(factors_top, factors_bottom,
 
     >>> import numpy as np
     >>> k1 = cpd_initialize([3, 3, 4], 3)
-    >>> kn1 = cpd_normalize(k1, sort=False, mergeout=True)
+    >>> kn1 = cpd_normalize(k1, sort=False, merge_lam=True)
     >>> k2 = cpd_initialize([3, 3, 4], 3)
-    >>> kn2 = cpd_normalize(k2, sort=False, mergeout=True)
+    >>> kn2 = cpd_normalize(k2, sort=False, merge_lam=True)
     >>> s1 = cpd_contract_free_cpd(k1, k2)
     >>> s2 = ncpd_contract_free_ncpd(kn1, kn2)
     >>> np.allclose(s1, s2)
