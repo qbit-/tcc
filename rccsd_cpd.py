@@ -3,16 +3,17 @@ from numpy import einsum
 from tcc.tensors import Tensors
 from tcc.cc_solvers import CC
 from tcc.denom import cc_denom
-from collections import namedtuple
-from types import SimpleNamespace
-from tcc.cpd import cpd_initialize, cpd_rebuild
-from tensorly.decomposition import parafac
+
+from tcc.cpd import (cpd_initialize, cpd_rebuild,
+                     als_dense, cpd_symmetrize)
+
 from tcc._rccsd_cpd import (
     _rccsd_cpd_ls_t_calculate_energy,
     _rccsd_cpd_ls_t_calc_residuals,
-    _rccsd_cpd_calc_r2dr2dx)
-
-from tcc.cpd import cpd_symmetrize
+    _rccsd_cpd_calc_r2dr2dx,
+    _rccsd_cpd_ls_t_unf_calc_residuals,
+    _rccsd_cpd_ls_t_unf_calculate_energy
+)
 
 
 class RCCSD_CPD_LS_T(CC):
@@ -72,7 +73,9 @@ class RCCSD_CPD_LS_T(CC):
         v_vovo = einsum("pia,pjb->aibj", ham.l.pov, ham.l.pov).conj()
 
         t2_full = 2 * v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
-        xs = parafac(t2_full, self.rankt)
+        xs = cpd_initialize(t2_full.shape, self.rankt)
+        xs = als_dense(xs, t2_full, max_cycle=100)
+
         names = ['x1', 'x2', 'x3', 'x4']
 
         xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
@@ -105,10 +108,8 @@ class RCCSD_CPD_LS_T(CC):
         t2_full = (2 * g.t2 + g.t2.transpose([0, 1, 3, 2])
                    ) / (- 6) * cc_denom(h.f, 4, 'dir', 'full')
 
-        rankt = self.rankt
-        xs = parafac(t2_full, rankt, n_iter_max=1, init='guess',
-                     guess=[a.t2.x1[:, :rankt], a.t2.x2[:, :rankt],
-                            a.t2.x3[:, :rankt], a.t2.x4[:, :rankt]])
+        xs = als_dense([a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
+                       t2_full, max_cycle=1)
 
         # xs = parafac(t2_full, rankt, n_iter_max=1, init='guess',
         #              guess=[2 * a.x1[:, :rankt], 2 * a.x2[:, :rankt],
@@ -212,7 +213,8 @@ class RCCSD_CPD_LS_R2(CC):
         v_vovo = einsum("pia,pjb->aibj", ham.l.pov, ham.l.pov).conj()
 
         t2_full = 2 * v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
-        t2_cpd = parafac(t2_full, self.rankt)
+        xs = cpd_initialize(t2_full.shape, self.rankt)
+        t2_cpd = als_dense(xs, t2_full, max_cycle=100)
 
         names = ['x1', 'x2', 'x3', 'x4']
         return Tensors(t1=t1, t2=Tensors(zip(names, t2_cpd)))
@@ -275,8 +277,8 @@ class RCCSD_CPD_LS_R2_W(RCCSD_CPD_LS_R2):
         names = ['x1', 'x2', 'x3', 'x4']
         return Tensors(t1=rt1, t2=Tensors(zip(names, resids)))
 
-    
-class RCCSD_nCPD_LS_T_UNF(CC):
+
+class RCCSD_CPD_LS_T_UNF(CC):
     """
     This implements RCCSD with nCPD decomposed amplitudes.
     We build nCPD factors to approximate amplitudes in the least squares sense.
@@ -284,7 +286,7 @@ class RCCSD_nCPD_LS_T_UNF(CC):
     but use the structure of T2 and RI decomposed interaction. This
     results in an N^5 algorithm.
     """
-    
+
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
                  mo_occ=None, rankt=None):
         """
@@ -331,41 +333,81 @@ class RCCSD_nCPD_LS_T_UNF(CC):
         v_vovo = einsum("pia,pjb->aibj", ham.l.pov, ham.l.pov).conj()
 
         t2_full = 2 * v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
-        xs = cpd_normalize(parafac(t2_full, self.rankt), sort=True, mergeout=True)
-        xs_sym = ncpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
+        xs = cpd_initialize(t2_full.shape, self.rankt)
+        xs = als_dense(xs, t2_full, max_cycle=100)
+        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
 
-        names = ['lam', 'x1', 'x2', 'x3', 'x4']
-        
+        names = ['x1', 'x2', 'x3', 'x4']
+
         return Tensors(t1=t1,
-                       t2=Tensors(zip(names, xs_sym)))
-    
+                       t2=Tensors(zip(names, xs)))
+
     def calc_residuals(self, h, a):
         """
         Calculates CC residuals for CC equations
         """
-        return _rccsd_ncpd_ls_t_unf_calc_residuals(h, a)
-        
+        return _rccsd_cpd_ls_t_unf_calc_residuals(h, a)
+
     def calculate_energy(self, h, a):
         """
         Calculate RCCSD energy
         Automatically generated
         """
-        energy = _rccsd_ncpd_ls_t_unf_calculate_energy(h, a)
+        energy = _rccsd_cpd_ls_t_unf_calculate_energy(h, a)
         return energy
-
 
     def calculate_update(self, h, a):
         """
-        Calculate dt 
+        Calculate dt
         """
-        r = self.calc_residuals(h, a) # symmetrize a before feeding into res?
-        xs = (a.t2[key] for key in sorted(a.t2.keys()))
-        
+
+        xs = [a.t2[key] for key in sorted(a.t2.keys())]
+        # symmetrize a before feeding into res
+        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
+        names = ['x1', 'x2', 'x3', 'x4']
+        r = self.calc_residuals(
+            h,
+            Tensors(t1=a.t1, t2=Tensors(zip(names, xs))))
+
         dt1 = r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
-        dt2 = cpd_normalize(parafac(r.t2, self.rankt, n_iter_max=1, guess=xs))
-        # Need one ALS step for each factor (with updates for every other!).
-        # Need to adapt to ncpd format
-        
+
+        # Do one ALS step for each factor (with updates for every other)
+        dt2 = als_dense(xs, r.t2 * (cc_denom(h.f, 4, 'dir', 'full')),
+                        self.rankt, max_cycle=1)
+
+        return Tensors(t1=dt1, t2=Tensors(zip(names, dt2)))
+
+    def solve_amps(h, a):
+        raise NotImplemented
+
+    def update_rhs(h, a):
+        raise NotImplemented
+
+    def solve_amps(self, h, a, g):
+        """
+        Solve for new amplitudes using RHS and denominator
+        """
+        t1 = g.t1 / (- cc_denom(h.f, 2, 'dir', 'full'))
+        t2_full = g.t2 / (- cc_denom(h.f, 4, 'dir', 'full'))
+
+        xs = als_dense([a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
+                       t2_full, max_cycle=1)
+
+        names = ['x1', 'x2', 'x3', 'x4']
+        return Tensors(t1=t1, t2=Tensors(zip(names, xs)))
+
+    def update_rhs(self, h, a, r):
+        """
+        Updates right hand side of the CC equations, commonly referred as G
+        """
+        return Tensors(
+            t1=r.t1 - a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
+            t2=r.t2 - cpd_rebuild(
+                (a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4)
+            ) / cc_denom(h.f, 4, 'dir', 'full')
+        )
+
+
 def test_cc():   # pragma: nocover
     from pyscf import gto
     from pyscf import scf
@@ -428,6 +470,41 @@ def test_hubbard():   # pragma: nocover
 
     # converged3, energy3, amps3 = root_solver(
     #      cc2)   # does not work
+
+
+def test_cpd_unf():
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = [
+        [8, (0., 0., 0.)],
+        [1, (0., -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+
+    mol.basis = {'H': '3-21g',
+                 'O': '3-21g', }
+    mol.build()
+    rhf = scf.RHF(mol)
+    rhf = scf.density_fit(scf.RHF(mol))
+    rhf.scf()  # -76.0267656731
+
+    from tcc.rccsd_mul import RCCSD_MUL_RI
+    from tcc.rccsd_cpd import RCCSD_CPD_LS_T_UNF
+    from tcc.cc_solvers import (classic_solver,
+                                step_solver)
+
+    cc1 = RCCSD_MUL_RI(rhf)
+    cc2 = RCCSD_CPD_LS_T_UNF(rhf, rankt=20)
+
+    converged1, energy1, amps1 = classic_solver(
+        cc1, conv_tol_energy=1e-8,)
+    # optimizer_kwargs=dict(alpha=1, beta=0),
+    # use_optimizer='momentum', max_cycle=50)
+
+    converged2, energy2, amps2 = classic_solver(
+        cc2, conv_tol_energy=1e-8,)
+    # optimizer_kwargs=dict(alpha=1, beta=0.5),
+    # use_optimizer='momentum', max_cycle=50)
 
 
 if __name__ == '__main__':

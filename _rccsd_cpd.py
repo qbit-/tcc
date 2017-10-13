@@ -9905,3 +9905,1859 @@ def _rccsd_cpd_calc_r2dr2dx(h, a, rt2):
     )
 
     return Tensors(x1=rx1, x2=rx2, x3=rx3, x4=rx4)
+
+
+def _rccsd_cpd_ls_t_unf_calculate_energy(h, a):
+    tau0 = (
+        einsum("ap,ip,wia->pw", a.t2.x1, a.t2.x4, h.l.pov)
+    )
+
+    tau1 = (
+        einsum("ap,ip,wia->pw", a.t2.x2, a.t2.x3, h.l.pov)
+    )
+
+    tau2 = (
+        einsum("ap,ip,wia->pw", a.t2.x2, a.t2.x4, h.l.pov)
+    )
+
+    tau3 = (
+        einsum("ap,ip,wia->pw", a.t2.x1, a.t2.x3, h.l.pov)
+    )
+
+    tau4 = (
+        einsum("ai,wia->w", a.t1, h.l.pov)
+    )
+
+    tau5 = (
+        einsum("ai,wia->w", a.t1, h.l.pov)
+    )
+
+    tau6 = (
+        einsum("ai,wib->abw", a.t1, h.l.pov)
+    )
+
+    tau7 = (
+        2 * einsum("ia->ia", h.f.ov)
+        - einsum("wib,baw->ia", h.l.pov, tau6)
+    )
+
+    energy = (
+        - einsum("pw,pw->", tau0, tau1)
+        + 2 * einsum("pw,pw->", tau2, tau3)
+        + 2 * einsum("w,w->", tau4, tau5)
+        + einsum("ai,ia->", a.t1, tau7)
+    )
+
+    return energy
+
+
+def _rccsd_cpd_ls_t_unf_calc_residuals(h, a):
+
+    tau0 = (
+        einsum("aj,wji->iaw", a.t1, h.l.poo)
+    )
+
+    tau1 = (
+        einsum("ai,wia->w", a.t1, h.l.pov)
+    )
+
+    tau2 = (
+        einsum("ip,wia->paw", a.t2.x4, h.l.pov)
+    )
+
+    tau3 = (
+        einsum("ap,wia->piw", a.t2.x2, h.l.pov)
+    )
+
+    tau4 = (
+        einsum("ai,piw->paw", a.t1, tau3)
+    )
+
+    tau5 = (
+        einsum("ap,wia->piw", a.t2.x1, h.l.pov)
+    )
+
+    tau6 = (
+        einsum("ai,piw->paw", a.t1, tau5)
+    )
+
+    tau7 = (
+        einsum("ai,wib->abw", a.t1, h.l.pov)
+    )
+
+    tau8 = (
+        einsum("wab->abw", h.l.pvv)
+        - einsum("abw->abw", tau7)
+    )
+
+    tau9 = (
+        einsum("bp,abw->paw", a.t2.x2, tau8)
+    )
+
+    tau10 = (
+        einsum("bp,abw->paw", a.t2.x1, tau8)
+    )
+
+    tau11 = (
+        2 * einsum("ap,pbw->pabw", a.t2.x1, tau4)
+        - einsum("ap,pbw->pabw", a.t2.x2, tau6)
+        + einsum("bp,paw->pabw", a.t2.x1, tau9)
+        - 2 * einsum("bp,paw->pabw", a.t2.x2, tau10)
+    )
+
+    tau12 = (
+        einsum("ai,wia->w", a.t1, h.l.pov)
+    )
+
+    tau13 = (
+        einsum("w,wia->ia", tau12, h.l.pov)
+    )
+
+    tau14 = (
+        einsum("ia->ia", h.f.ov)
+        + 2 * einsum("ia->ia", tau13)
+    )
+
+    tau15 = (
+        einsum("ip,ia->pa", a.t2.x4, tau14)
+    )
+
+    tau16 = (
+        2 * einsum("ap,bp->pab", a.t2.x1, a.t2.x2)
+        - einsum("bp,ap->pab", a.t2.x1, a.t2.x2)
+    )
+
+    tau17 = (
+        - einsum("pbw,pabw->pa", tau2, tau11)
+        + einsum("pb,pab->pa", tau15, tau16)
+    )
+
+    tau18 = (
+        einsum("ip,wia->paw", a.t2.x3, h.l.pov)
+    )
+
+    tau19 = (
+        - einsum("ap,pbw->pabw", a.t2.x1, tau4)
+        + 2 * einsum("ap,pbw->pabw", a.t2.x2, tau6)
+        + einsum("bp,paw->pabw", a.t2.x2, tau10)
+        - 2 * einsum("bp,paw->pabw", a.t2.x1, tau9)
+    )
+
+    tau20 = (
+        einsum("ip,ia->pa", a.t2.x3, tau14)
+    )
+
+    tau21 = (
+        - einsum("ap,bp->pab", a.t2.x1, a.t2.x2)
+        + 2 * einsum("bp,ap->pab", a.t2.x1, a.t2.x2)
+    )
+
+    tau22 = (
+        - einsum("pbw,pabw->pa", tau18, tau19)
+        + einsum("pb,pab->pa", tau20, tau21)
+    )
+
+    tau23 = (
+        einsum("ap,ip,wia->pw", a.t2.x2, a.t2.x4, h.l.pov)
+    )
+
+    tau24 = (
+        einsum("pw,wia->pia", tau23, h.l.pov)
+    )
+
+    tau25 = (
+        einsum("ip,pia->pa", a.t2.x3, tau24)
+    )
+
+    tau26 = (
+        einsum("ap,ip,wia->pw", a.t2.x1, a.t2.x4, h.l.pov)
+    )
+
+    tau27 = (
+        einsum("pw,wia->pia", tau26, h.l.pov)
+    )
+
+    tau28 = (
+        einsum("ip,pia->pa", a.t2.x3, tau27)
+    )
+
+    tau29 = (
+        einsum("ai,wib->abw", a.t1, h.l.pov)
+    )
+
+    tau30 = (
+        einsum("ia->ia", h.f.ov)
+        + 2 * einsum("w,wia->ia", tau1, h.l.pov)
+        - einsum("wib,baw->ia", h.l.pov, tau29)
+    )
+
+    tau31 = (
+        einsum("ip,wia->paw", a.t2.x3, h.l.pov)
+    )
+
+    tau32 = (
+        einsum("pab,pbw->paw", tau21, tau31)
+    )
+
+    tau33 = (
+        2 * einsum("bi,wab->iaw", a.t1, h.l.pvv)
+        + einsum("ip,paw->iaw", a.t2.x4, tau32)
+    )
+
+    tau34 = (
+        - 2 * einsum("ab->ab", h.f.vv)
+        - 4 * einsum("w,wab->ab", tau1, h.l.pvv)
+        + 2 * einsum("ap,pb->ab", a.t2.x1, tau25)
+        - einsum("ap,pb->ab", a.t2.x2, tau28)
+        + 2 * einsum("ai,ib->ab", a.t1, tau30)
+        + einsum("wib,iaw->ab", h.l.pov, tau33)
+    )
+
+    tau35 = (
+        einsum("aj,wji->iaw", a.t1, h.l.poo)
+    )
+
+    tau36 = (
+        einsum("ij->ij", h.f.oo)
+        + 2 * einsum("w,wij->ij", tau1, h.l.poo)
+        - einsum("wia,jaw->ij", h.l.pov, tau35)
+    )
+
+    tau37 = (
+        einsum("ap,wia->piw", a.t2.x2, h.l.pov)
+    )
+
+    tau38 = (
+        einsum("jp,wji->piw", a.t2.x4, h.l.poo)
+    )
+
+    tau39 = (
+        einsum("jp,wji->piw", a.t2.x3, h.l.poo)
+    )
+
+    tau40 = (
+        - einsum("jp,piw->pijw", a.t2.x3, tau38)
+        + 2 * einsum("jp,piw->pijw", a.t2.x4, tau39)
+    )
+
+    tau41 = (
+        einsum("pjw,pijw->pi", tau37, tau40)
+    )
+
+    tau42 = (
+        einsum("ap,wia->piw", a.t2.x1, h.l.pov)
+    )
+
+    tau43 = (
+        2 * einsum("jp,piw->pijw", a.t2.x3, tau38)
+        - einsum("jp,piw->pijw", a.t2.x4, tau39)
+    )
+
+    tau44 = (
+        einsum("pjw,pijw->pi", tau42, tau43)
+    )
+
+    rt1 = (
+        einsum("ia->ai", h.f.ov.conj())
+        - einsum("wab,ibw->ai", h.l.pvv, tau0)
+        + 2 * einsum("w,wai->ai", tau1, h.l.pvo)
+        + einsum("ip,pa->ai", a.t2.x3, tau17) / 2
+        + einsum("ip,pa->ai", a.t2.x4, tau22) / 2
+        - einsum("bi,ab->ai", a.t1, tau34) / 2
+        - einsum("aj,ji->ai", a.t1, tau36)
+        - einsum("ap,pi->ai", a.t2.x1, tau41) / 2
+        - einsum("ap,pi->ai", a.t2.x2, tau44) / 2
+    )
+    tau0 = (
+        einsum("bi,wab->iaw", a.t1, h.l.pvv)
+    )
+
+    tau1 = (
+        einsum("bi,wab->iaw", a.t1, h.l.pvv)
+    )
+
+    tau2 = (
+        einsum("bp,wab->paw", a.t2.x1, h.l.pvv)
+    )
+
+    tau3 = (
+        einsum("bp,wab->paw", a.t2.x2, h.l.pvv)
+    )
+
+    tau4 = (
+        einsum("paw,pbw->pab", tau2, tau3)
+    )
+
+    tau5 = (
+        einsum("bp,wab->paw", a.t2.x1, h.l.pvv)
+    )
+
+    tau6 = (
+        einsum("bp,wab->paw", a.t2.x2, h.l.pvv)
+    )
+
+    tau7 = (
+        einsum("pbw,paw->pab", tau5, tau6)
+    )
+
+    tau8 = (
+        einsum("aj,wji->iaw", a.t1, h.l.poo)
+    )
+
+    tau9 = (
+        einsum("ai,wja->ijw", a.t1, h.l.pov)
+    )
+
+    tau10 = (
+        einsum("aj,ijw->iaw", a.t1, tau9)
+    )
+
+    tau11 = (
+        einsum("ai,wja->ijw", a.t1, h.l.pov)
+    )
+
+    tau12 = (
+        einsum("aj,ijw->iaw", a.t1, tau11)
+    )
+
+    tau13 = (
+        einsum("aj,wji->iaw", a.t1, h.l.poo)
+    )
+
+    tau14 = (
+        einsum("jp,wji->piw", a.t2.x3, h.l.poo)
+    )
+
+    tau15 = (
+        einsum("jp,wji->piw", a.t2.x4, h.l.poo)
+    )
+
+    tau16 = (
+        einsum("piw,pjw->pij", tau14, tau15)
+    )
+
+    tau17 = (
+        einsum("jp,wji->piw", a.t2.x3, h.l.poo)
+    )
+
+    tau18 = (
+        einsum("jp,wji->piw", a.t2.x4, h.l.poo)
+    )
+
+    tau19 = (
+        einsum("pjw,piw->pij", tau17, tau18)
+    )
+
+    tau20 = (
+        einsum("ap,ip,wia->pw", a.t2.x2, a.t2.x4, h.l.pov)
+    )
+
+    tau21 = (
+        einsum("ap,ip,wia->pw", a.t2.x2, a.t2.x4, h.l.pov)
+    )
+
+    tau22 = (
+        einsum("pw,qw->pq", tau20, tau21)
+    )
+
+    tau23 = (
+        einsum("aq,iq,pq->pia", a.t2.x1, a.t2.x3, tau22)
+    )
+
+    tau24 = (
+        einsum("ap,ip,wia->pw", a.t2.x1, a.t2.x3, h.l.pov)
+    )
+
+    tau25 = (
+        einsum("ap,ip,wia->pw", a.t2.x1, a.t2.x3, h.l.pov)
+    )
+
+    tau26 = (
+        einsum("pw,qw->pq", tau24, tau25)
+    )
+
+    tau27 = (
+        einsum("aq,iq,pq->pia", a.t2.x2, a.t2.x4, tau26)
+    )
+
+    tau28 = (
+        einsum("ap,wia->piw", a.t2.x2, h.l.pov)
+    )
+
+    tau29 = (
+        einsum("ip,wia->paw", a.t2.x4, h.l.pov)
+    )
+
+    tau30 = (
+        einsum("piw,paw->pia", tau28, tau29)
+    )
+
+    tau31 = (
+        einsum("ap,ip,qia->pq", a.t2.x2, a.t2.x4, tau30)
+    )
+
+    tau32 = (
+        einsum("aq,iq,pq->pia", a.t2.x1, a.t2.x3, tau31)
+    )
+
+    tau33 = (
+        einsum("ap,wia->piw", a.t2.x1, h.l.pov)
+    )
+
+    tau34 = (
+        einsum("ip,wia->paw", a.t2.x3, h.l.pov)
+    )
+
+    tau35 = (
+        einsum("piw,paw->pia", tau33, tau34)
+    )
+
+    tau36 = (
+        einsum("ap,ip,qia->pq", a.t2.x1, a.t2.x3, tau35)
+    )
+
+    tau37 = (
+        einsum("aq,iq,pq->pia", a.t2.x2, a.t2.x4, tau36)
+    )
+
+    tau38 = (
+        einsum("ap,ip,wia->pw", a.t2.x2, a.t2.x3, h.l.pov)
+    )
+
+    tau39 = (
+        einsum("ap,ip,wia->pw", a.t2.x2, a.t2.x3, h.l.pov)
+    )
+
+    tau40 = (
+        einsum("pw,qw->pq", tau38, tau39)
+    )
+
+    tau41 = (
+        einsum("aq,iq,pq->pia", a.t2.x1, a.t2.x4, tau40)
+    )
+
+    tau42 = (
+        einsum("piw,paw->pia", tau28, tau34)
+    )
+
+    tau43 = (
+        einsum("ap,ip,qia->pq", a.t2.x2, a.t2.x3, tau42)
+    )
+
+    tau44 = (
+        einsum("aq,iq,pq->pia", a.t2.x1, a.t2.x4, tau43)
+    )
+
+    tau45 = (
+        einsum("ap,ip,wia->pw", a.t2.x1, a.t2.x4, h.l.pov)
+    )
+
+    tau46 = (
+        einsum("ap,ip,wia->pw", a.t2.x1, a.t2.x4, h.l.pov)
+    )
+
+    tau47 = (
+        einsum("pw,qw->pq", tau45, tau46)
+    )
+
+    tau48 = (
+        einsum("aq,iq,pq->pia", a.t2.x2, a.t2.x3, tau47)
+    )
+
+    tau49 = (
+        einsum("paw,piw->pia", tau29, tau33)
+    )
+
+    tau50 = (
+        einsum("ap,ip,qia->pq", a.t2.x1, a.t2.x4, tau49)
+    )
+
+    tau51 = (
+        einsum("aq,iq,pq->pia", a.t2.x2, a.t2.x3, tau50)
+    )
+
+    tau52 = (
+        einsum("piw,pjw->pij", tau18, tau28)
+    )
+
+    tau53 = (
+        einsum("aj,pij->pia", a.t1, tau52)
+    )
+
+    tau54 = (
+        einsum("ap,wia->piw", a.t2.x2, h.l.pov)
+    )
+
+    tau55 = (
+        einsum("pjw,piw->pij", tau17, tau54)
+    )
+
+    tau56 = (
+        einsum("aj,pji->pia", a.t1, tau55)
+    )
+
+    tau57 = (
+        einsum("pw,wij->pij", tau39, h.l.poo)
+    )
+
+    tau58 = (
+        einsum("aj,pji->pia", a.t1, tau57)
+    )
+
+    tau59 = (
+        einsum("ap,wia->piw", a.t2.x1, h.l.pov)
+    )
+
+    tau60 = (
+        einsum("pjw,piw->pij", tau15, tau59)
+    )
+
+    tau61 = (
+        einsum("aj,pji->pia", a.t1, tau60)
+    )
+
+    tau62 = (
+        einsum("pw,wij->pij", tau46, h.l.poo)
+    )
+
+    tau63 = (
+        einsum("aj,pji->pia", a.t1, tau62)
+    )
+
+    tau64 = (
+        einsum("piw,pjw->pij", tau14, tau33)
+    )
+
+    tau65 = (
+        einsum("aj,pij->pia", a.t1, tau64)
+    )
+
+    tau66 = (
+        einsum("pjw,piw->pij", tau15, tau54)
+    )
+
+    tau67 = (
+        einsum("aj,pji->pia", a.t1, tau66)
+    )
+
+    tau68 = (
+        einsum("pw,wij->pij", tau38, h.l.poo)
+    )
+
+    tau69 = (
+        einsum("aj,pji->pia", a.t1, tau68)
+    )
+
+    tau70 = (
+        einsum("piw,pjw->pij", tau14, tau28)
+    )
+
+    tau71 = (
+        einsum("aj,pij->pia", a.t1, tau70)
+    )
+
+    tau72 = (
+        einsum("pw,wij->pij", tau45, h.l.poo)
+    )
+
+    tau73 = (
+        einsum("aj,pji->pia", a.t1, tau72)
+    )
+
+    tau74 = (
+        einsum("piw,pjw->pij", tau18, tau33)
+    )
+
+    tau75 = (
+        einsum("aj,pij->pia", a.t1, tau74)
+    )
+
+    tau76 = (
+        einsum("pjw,piw->pij", tau17, tau59)
+    )
+
+    tau77 = (
+        einsum("aj,pji->pia", a.t1, tau76)
+    )
+
+    tau78 = (
+        einsum("piw,paw->pia", tau15, tau34)
+    )
+
+    tau79 = (
+        einsum("ai,pja->pij", a.t1, tau78)
+    )
+
+    tau80 = (
+        einsum("piw,paw->pia", tau17, tau29)
+    )
+
+    tau81 = (
+        einsum("ai,pja->pij", a.t1, tau80)
+    )
+
+    tau82 = (
+        einsum("ip,wia->paw", a.t2.x4, h.l.pov)
+    )
+
+    tau83 = (
+        einsum("piw,paw->pia", tau14, tau82)
+    )
+
+    tau84 = (
+        einsum("ai,pja->pij", a.t1, tau83)
+    )
+
+    tau85 = (
+        einsum("ip,wia->paw", a.t2.x3, h.l.pov)
+    )
+
+    tau86 = (
+        einsum("piw,paw->pia", tau18, tau85)
+    )
+
+    tau87 = (
+        einsum("ai,pja->pij", a.t1, tau86)
+    )
+
+    tau88 = (
+        einsum("wia,jaw->ij", h.l.pov, tau8)
+    )
+
+    tau89 = (
+        einsum("jp,ji->pi", a.t2.x4, tau88)
+    )
+
+    tau90 = (
+        einsum("wja,iaw->ij", h.l.pov, tau13)
+    )
+
+    tau91 = (
+        einsum("jp,ij->pi", a.t2.x3, tau90)
+    )
+
+    tau92 = (
+        einsum("jp,ij->pi", a.t2.x4, tau90)
+    )
+
+    tau93 = (
+        einsum("jp,ji->pi", a.t2.x3, tau88)
+    )
+
+    tau94 = (
+        einsum("pw,wij->pij", tau21, h.l.poo)
+    )
+
+    tau95 = (
+        einsum("aj,pji->pia", a.t1, tau94)
+    )
+
+    tau96 = (
+        einsum("pw,wij->pij", tau25, h.l.poo)
+    )
+
+    tau97 = (
+        einsum("aj,pji->pia", a.t1, tau96)
+    )
+
+    tau98 = (
+        einsum("pw,wij->pij", tau20, h.l.poo)
+    )
+
+    tau99 = (
+        einsum("aj,pji->pia", a.t1, tau98)
+    )
+
+    tau100 = (
+        einsum("pw,wij->pij", tau24, h.l.poo)
+    )
+
+    tau101 = (
+        einsum("aj,pji->pia", a.t1, tau100)
+    )
+
+    tau102 = (
+        einsum("ai,wia->w", a.t1, h.l.pov)
+    )
+
+    tau103 = (
+        einsum("w,wij->ij", tau102, h.l.poo)
+    )
+
+    tau104 = (
+        einsum("jp,ji->pi", a.t2.x4, tau103)
+    )
+
+    tau105 = (
+        einsum("ai,wia->w", a.t1, h.l.pov)
+    )
+
+    tau106 = (
+        einsum("w,wij->ij", tau105, h.l.poo)
+    )
+
+    tau107 = (
+        einsum("jp,ji->pi", a.t2.x3, tau106)
+    )
+
+    tau108 = (
+        einsum("jp,ji->pi", a.t2.x4, tau106)
+    )
+
+    tau109 = (
+        einsum("jp,ji->pi", a.t2.x3, tau103)
+    )
+
+    tau110 = (
+        einsum("pjw,piw->pij", tau28, tau59)
+    )
+
+    tau111 = (
+        einsum("aj,pij->pia", a.t1, tau110)
+    )
+
+    tau112 = (
+        einsum("ai,pib->pab", a.t1, tau111)
+    )
+
+    tau113 = (
+        einsum("pjw,piw->pij", tau33, tau54)
+    )
+
+    tau114 = (
+        einsum("aj,pij->pia", a.t1, tau113)
+    )
+
+    tau115 = (
+        einsum("ai,pib->pab", a.t1, tau114)
+    )
+
+    tau116 = (
+        einsum("jp,ji->pi", a.t2.x4, h.f.oo)
+    )
+
+    tau117 = (
+        einsum("ap,bp,ip,pj->ijab", a.t2.x1, a.t2.x2, a.t2.x3, tau116)
+    )
+
+    tau118 = (
+        einsum("bp,ab->pa", a.t2.x2, h.f.vv)
+    )
+
+    tau119 = (
+        einsum("ap,ip,jp,pb->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau118)
+    )
+
+    tau120 = (
+        einsum("ap,ia->pi", a.t2.x1, h.f.ov)
+    )
+
+    tau121 = (
+        einsum("ai,pi->pa", a.t1, tau120)
+    )
+
+    tau122 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau121)
+    )
+
+    tau123 = (
+        einsum("ai,ja->ij", a.t1, h.f.ov)
+    )
+
+    tau124 = (
+        einsum("jp,ij->pi", a.t2.x3, tau123)
+    )
+
+    tau125 = (
+        einsum("ap,bp,jp,pi->ijab", a.t2.x1, a.t2.x2, a.t2.x4, tau124)
+    )
+
+    tau126 = (
+        einsum("wbj,iaw->ijab", h.l.pvo, tau12)
+    )
+
+    tau127 = (
+        einsum("piw,paw->pia", tau15, tau6)
+    )
+
+    tau128 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x3, tau127)
+    )
+
+    tau129 = (
+        einsum("piw,paw->pia", tau17, tau2)
+    )
+
+    tau130 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x4, tau129)
+    )
+
+    tau131 = (
+        einsum("pw,wai->pia", tau39, h.l.pvo)
+    )
+
+    tau132 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x4, tau131)
+    )
+
+    tau133 = (
+        einsum("pw,wai->pia", tau46, h.l.pvo)
+    )
+
+    tau134 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x3, tau133)
+    )
+
+    tau135 = (
+        einsum("pw,wai->pia", tau21, h.l.pvo)
+    )
+
+    tau136 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x3, tau135)
+    )
+
+    tau137 = (
+        einsum("pw,wai->pia", tau25, h.l.pvo)
+    )
+
+    tau138 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x4, tau137)
+    )
+
+    tau139 = (
+        einsum("piw,paw->pia", tau33, tau6)
+    )
+
+    tau140 = (
+        einsum("ai,pib->pab", a.t1, tau139)
+    )
+
+    tau141 = (
+        einsum("ip,jp,pab->ijab", a.t2.x3, a.t2.x4, tau140)
+    )
+
+    tau142 = (
+        einsum("pw,wab->pab", tau39, h.l.pvv)
+    )
+
+    tau143 = (
+        einsum("bi,pab->pia", a.t1, tau142)
+    )
+
+    tau144 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x4, tau143)
+    )
+
+    tau145 = (
+        einsum("pw,wab->pab", tau46, h.l.pvv)
+    )
+
+    tau146 = (
+        einsum("bi,pab->pia", a.t1, tau145)
+    )
+
+    tau147 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x3, tau146)
+    )
+
+    tau148 = (
+        einsum("paw,pbw->pab", tau6, tau82)
+    )
+
+    tau149 = (
+        einsum("bi,pab->pia", a.t1, tau148)
+    )
+
+    tau150 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x3, tau149)
+    )
+
+    tau151 = (
+        einsum("paw,pbw->pab", tau2, tau85)
+    )
+
+    tau152 = (
+        einsum("bi,pab->pia", a.t1, tau151)
+    )
+
+    tau153 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x4, tau152)
+    )
+
+    tau154 = (
+        einsum("ai,wib->abw", a.t1, h.l.pov)
+    )
+
+    tau155 = (
+        einsum("wac,cbw->ab", h.l.pvv, tau154)
+    )
+
+    tau156 = (
+        einsum("bp,ab->pa", a.t2.x1, tau155)
+    )
+
+    tau157 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau156)
+    )
+
+    tau158 = (
+        einsum("pw,wab->pab", tau21, h.l.pvv)
+    )
+
+    tau159 = (
+        einsum("bi,pab->pia", a.t1, tau158)
+    )
+
+    tau160 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x3, tau159)
+    )
+
+    tau161 = (
+        einsum("pw,wab->pab", tau25, h.l.pvv)
+    )
+
+    tau162 = (
+        einsum("bi,pab->pia", a.t1, tau161)
+    )
+
+    tau163 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x4, tau162)
+    )
+
+    tau164 = (
+        einsum("w,wab->ab", tau105, h.l.pvv)
+    )
+
+    tau165 = (
+        einsum("bp,ab->pa", a.t2.x1, tau164)
+    )
+
+    tau166 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau165)
+    )
+
+    tau167 = (
+        einsum("pw,wia->pia", tau21, h.l.pov)
+    )
+
+    tau168 = (
+        einsum("ai,pja->pij", a.t1, tau167)
+    )
+
+    tau169 = (
+        einsum("aj,pij->pia", a.t1, tau168)
+    )
+
+    tau170 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x3, tau169)
+    )
+
+    tau171 = (
+        einsum("pw,wia->pia", tau25, h.l.pov)
+    )
+
+    tau172 = (
+        einsum("ai,pja->pij", a.t1, tau171)
+    )
+
+    tau173 = (
+        einsum("aj,pij->pia", a.t1, tau172)
+    )
+
+    tau174 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x4, tau173)
+    )
+
+    tau175 = (
+        einsum("w,wia->ia", tau105, h.l.pov)
+    )
+
+    tau176 = (
+        einsum("ap,ia->pi", a.t2.x1, tau175)
+    )
+
+    tau177 = (
+        einsum("ai,pi->pa", a.t1, tau176)
+    )
+
+    tau178 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau177)
+    )
+
+    tau179 = (
+        einsum("w,wia->ia", tau102, h.l.pov)
+    )
+
+    tau180 = (
+        einsum("ai,ja->ij", a.t1, tau179)
+    )
+
+    tau181 = (
+        einsum("jp,ij->pi", a.t2.x3, tau180)
+    )
+
+    tau182 = (
+        einsum("ap,bp,jp,pi->ijab", a.t2.x1, a.t2.x2, a.t2.x4, tau181)
+    )
+
+    tau183 = (
+        einsum("pw,wia->pia", tau39, h.l.pov)
+    )
+
+    tau184 = (
+        einsum("ai,pja->pij", a.t1, tau183)
+    )
+
+    tau185 = (
+        einsum("aj,pij->pia", a.t1, tau184)
+    )
+
+    tau186 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x4, tau185)
+    )
+
+    tau187 = (
+        einsum("pw,wia->pia", tau46, h.l.pov)
+    )
+
+    tau188 = (
+        einsum("ai,pja->pij", a.t1, tau187)
+    )
+
+    tau189 = (
+        einsum("aj,pij->pia", a.t1, tau188)
+    )
+
+    tau190 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x3, tau189)
+    )
+
+    tau191 = (
+        einsum("piw,paw->pia", tau54, tau82)
+    )
+
+    tau192 = (
+        einsum("ai,pja->pij", a.t1, tau191)
+    )
+
+    tau193 = (
+        einsum("aj,pij->pia", a.t1, tau192)
+    )
+
+    tau194 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x3, tau193)
+    )
+
+    tau195 = (
+        einsum("piw,paw->pia", tau59, tau85)
+    )
+
+    tau196 = (
+        einsum("ai,pja->pij", a.t1, tau195)
+    )
+
+    tau197 = (
+        einsum("aj,pij->pia", a.t1, tau196)
+    )
+
+    tau198 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x4, tau197)
+    )
+
+    tau199 = (
+        einsum("wib,baw->ia", h.l.pov, tau154)
+    )
+
+    tau200 = (
+        einsum("ap,ia->pi", a.t2.x1, tau199)
+    )
+
+    tau201 = (
+        einsum("ai,pi->pa", a.t1, tau200)
+    )
+
+    tau202 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau201)
+    )
+
+    tau203 = (
+        einsum("paw,pbw->pab", tau34, tau82)
+    )
+
+    tau204 = (
+        einsum("bi,pab->pia", a.t1, tau203)
+    )
+
+    tau205 = (
+        einsum("ai,pja->pij", a.t1, tau204)
+    )
+
+    tau206 = (
+        einsum("ap,bp,pij->ijab", a.t2.x1, a.t2.x2, tau205)
+    )
+
+    tau207 = (
+        einsum("ai,wib->abw", a.t1, h.l.pov)
+    )
+
+    tau208 = (
+        einsum("wib,baw->ia", h.l.pov, tau207)
+    )
+
+    tau209 = (
+        einsum("ai,ja->ij", a.t1, tau208)
+    )
+
+    tau210 = (
+        einsum("jp,ij->pi", a.t2.x3, tau209)
+    )
+
+    tau211 = (
+        einsum("ap,bp,jp,pi->ijab", a.t2.x1, a.t2.x2, a.t2.x4, tau210)
+    )
+
+    tau212 = (
+        einsum("ip,pia->pa", a.t2.x3, tau167)
+    )
+
+    tau213 = (
+        einsum("aq,pa->pq", a.t2.x2, tau212)
+    )
+
+    tau214 = (
+        einsum("aq,qp->pa", a.t2.x1, tau213)
+    )
+
+    tau215 = (
+        einsum("ap,ip,jp,pb->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau214)
+    )
+
+    tau216 = (
+        einsum("aq,iq,pia->pq", a.t2.x2, a.t2.x4, tau42)
+    )
+
+    tau217 = (
+        einsum("aq,iq,qp->pia", a.t2.x1, a.t2.x4, tau216)
+    )
+
+    tau218 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x1, a.t2.x3, tau217)
+    )
+
+    tau219 = (
+        einsum("pw,wia->pia", tau38, h.l.pov)
+    )
+
+    tau220 = (
+        einsum("ip,pia->pa", a.t2.x4, tau219)
+    )
+
+    tau221 = (
+        einsum("aq,pa->pq", a.t2.x2, tau220)
+    )
+
+    tau222 = (
+        einsum("aq,qp->pa", a.t2.x1, tau221)
+    )
+
+    tau223 = (
+        einsum("ap,ip,jp,pb->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau222)
+    )
+
+    tau224 = (
+        einsum("qw,pw->pq", tau21, tau38)
+    )
+
+    tau225 = (
+        einsum("aq,iq,qp->pia", a.t2.x1, a.t2.x4, tau224)
+    )
+
+    tau226 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x1, a.t2.x3, tau225)
+    )
+
+    tau227 = (
+        einsum("ap,pia->pi", a.t2.x1, tau167)
+    )
+
+    tau228 = (
+        einsum("iq,pi->pq", a.t2.x4, tau227)
+    )
+
+    tau229 = (
+        einsum("iq,qp->pi", a.t2.x3, tau228)
+    )
+
+    tau230 = (
+        einsum("ap,bp,ip,pj->ijab", a.t2.x1, a.t2.x2, a.t2.x3, tau229)
+    )
+
+    tau231 = (
+        einsum("pw,wia->pia", tau45, h.l.pov)
+    )
+
+    tau232 = (
+        einsum("ap,pia->pi", a.t2.x2, tau231)
+    )
+
+    tau233 = (
+        einsum("iq,pi->pq", a.t2.x4, tau232)
+    )
+
+    tau234 = (
+        einsum("iq,qp->pi", a.t2.x3, tau233)
+    )
+
+    tau235 = (
+        einsum("ap,bp,ip,pj->ijab", a.t2.x1, a.t2.x2, a.t2.x3, tau234)
+    )
+
+    tau236 = (
+        einsum("pw,wia->pia", tau24, h.l.pov)
+    )
+
+    tau237 = (
+        einsum("ap,pia->pi", a.t2.x2, tau236)
+    )
+
+    tau238 = (
+        einsum("iq,pi->pq", a.t2.x4, tau237)
+    )
+
+    tau239 = (
+        einsum("iq,qp->pi", a.t2.x4, tau238)
+    )
+
+    tau240 = (
+        einsum("ap,bp,ip,pj->ijab", a.t2.x1, a.t2.x2, a.t2.x3, tau239)
+    )
+
+    tau241 = (
+        einsum("iq,pi->pq", a.t2.x3, tau227)
+    )
+
+    tau242 = (
+        einsum("iq,qp->pi", a.t2.x3, tau241)
+    )
+
+    tau243 = (
+        einsum("ap,bp,jp,pi->ijab", a.t2.x1, a.t2.x2, a.t2.x4, tau242)
+    )
+
+    tau244 = (
+        einsum("iq,jq,pij->pq", a.t2.x3, a.t2.x4, tau110)
+    )
+
+    tau245 = (
+        einsum("iq,jq,qp->pij", a.t2.x3, a.t2.x4, tau244)
+    )
+
+    tau246 = (
+        einsum("ap,bp,pij->ijab", a.t2.x1, a.t2.x2, tau245)
+    )
+
+    tau247 = (
+        einsum("ap,ip,qia->pq", a.t2.x1, a.t2.x4, tau30)
+    )
+
+    tau248 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x3, tau247)
+    )
+
+    tau249 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x1, a.t2.x3, tau248)
+    )
+
+    tau250 = (
+        einsum("qw,pw->pq", tau21, tau45)
+    )
+
+    tau251 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x3, tau250)
+    )
+
+    tau252 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x1, a.t2.x3, tau251)
+    )
+
+    tau253 = (
+        einsum("ip,pia->pa", a.t2.x4, tau236)
+    )
+
+    tau254 = (
+        einsum("aq,pa->pq", a.t2.x2, tau253)
+    )
+
+    tau255 = (
+        einsum("aq,qp->pa", a.t2.x2, tau254)
+    )
+
+    tau256 = (
+        einsum("ap,ip,jp,pb->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau255)
+    )
+
+    tau257 = (
+        einsum("ap,ip,qia->pq", a.t2.x1, a.t2.x4, tau42)
+    )
+
+    tau258 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x3, tau257)
+    )
+
+    tau259 = (
+        einsum("ap,jp,pib->ijab", a.t2.x1, a.t2.x4, tau258)
+    )
+
+    tau260 = (
+        einsum("ap,qa->pq", a.t2.x1, tau212)
+    )
+
+    tau261 = (
+        einsum("aq,pq->pa", a.t2.x1, tau260)
+    )
+
+    tau262 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau261)
+    )
+
+    tau263 = (
+        einsum("ap,ip,qia->pq", a.t2.x1, a.t2.x3, tau42)
+    )
+
+    tau264 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x4, tau263)
+    )
+
+    tau265 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x1, a.t2.x4, tau264)
+    )
+
+    tau266 = (
+        einsum("pw,qw->pq", tau24, tau39)
+    )
+
+    tau267 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x4, tau266)
+    )
+
+    tau268 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x1, a.t2.x4, tau267)
+    )
+
+    tau269 = (
+        einsum("ap,pia->pi", a.t2.x1, tau219)
+    )
+
+    tau270 = (
+        einsum("iq,pi->pq", a.t2.x4, tau269)
+    )
+
+    tau271 = (
+        einsum("iq,qp->pi", a.t2.x4, tau270)
+    )
+
+    tau272 = (
+        einsum("ap,bp,ip,pj->ijab", a.t2.x1, a.t2.x2, a.t2.x3, tau271)
+    )
+
+    tau273 = (
+        einsum("ap,pia->pi", a.t2.x2, tau187)
+    )
+
+    tau274 = (
+        einsum("iq,pi->pq", a.t2.x3, tau273)
+    )
+
+    tau275 = (
+        einsum("iq,qp->pi", a.t2.x3, tau274)
+    )
+
+    tau276 = (
+        einsum("ap,bp,jp,pi->ijab", a.t2.x1, a.t2.x2, a.t2.x4, tau275)
+    )
+
+    tau277 = (
+        einsum("ip,pia->pa", a.t2.x3, tau187)
+    )
+
+    tau278 = (
+        einsum("aq,pa->pq", a.t2.x2, tau277)
+    )
+
+    tau279 = (
+        einsum("aq,qp->pa", a.t2.x2, tau278)
+    )
+
+    tau280 = (
+        einsum("ap,ip,jp,pb->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau279)
+    )
+
+    tau281 = (
+        einsum("aq,iq,pia->pq", a.t2.x2, a.t2.x4, tau35)
+    )
+
+    tau282 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x4, tau281)
+    )
+
+    tau283 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x1, a.t2.x3, tau282)
+    )
+
+    tau284 = (
+        einsum("ap,qa->pq", a.t2.x1, tau220)
+    )
+
+    tau285 = (
+        einsum("aq,pq->pa", a.t2.x1, tau284)
+    )
+
+    tau286 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau285)
+    )
+
+    tau287 = (
+        einsum("aq,iq,pia->pq", a.t2.x1, a.t2.x4, tau35)
+    )
+
+    tau288 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x4, tau287)
+    )
+
+    tau289 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x2, a.t2.x3, tau288)
+    )
+
+    tau290 = (
+        einsum("pw,qw->pq", tau24, tau46)
+    )
+
+    tau291 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x4, tau290)
+    )
+
+    tau292 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x2, a.t2.x3, tau291)
+    )
+
+    tau293 = (
+        einsum("qw,pw->pq", tau21, tau24)
+    )
+
+    tau294 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x4, tau293)
+    )
+
+    tau295 = (
+        einsum("ap,ip,pjb->ijab", a.t2.x1, a.t2.x3, tau294)
+    )
+
+    tau296 = (
+        2 * einsum("ijab->ijab", tau117)
+        - 2 * einsum("ijab->ijab", tau119)
+        + 2 * einsum("ijab->ijab", tau122)
+        + 2 * einsum("ijab->ijab", tau125)
+        + 4 * einsum("ijab->ijab", tau126)
+        + 2 * einsum("ijab->ijab", tau128)
+        + 2 * einsum("ijab->ijab", tau130)
+        + 2 * einsum("ijab->ijab", tau132)
+        + 2 * einsum("ijab->ijab", tau134)
+        - 4 * einsum("ijab->ijab", tau136)
+        - 4 * einsum("ijab->ijab", tau138)
+        + 2 * einsum("ijab->ijab", tau141)
+        + 2 * einsum("ijab->ijab", tau144)
+        + 2 * einsum("ijab->ijab", tau147)
+        + 2 * einsum("ijab->ijab", tau150)
+        + 2 * einsum("ijab->ijab", tau153)
+        + 2 * einsum("ijab->ijab", tau157)
+        - 4 * einsum("ijab->ijab", tau160)
+        - 4 * einsum("ijab->ijab", tau163)
+        - 4 * einsum("ijab->ijab", tau166)
+        + 4 * einsum("ijab->ijab", tau170)
+        + 4 * einsum("ijab->ijab", tau174)
+        + 4 * einsum("ijab->ijab", tau178)
+        + 4 * einsum("ijab->ijab", tau182)
+        - 2 * einsum("ijab->ijab", tau186)
+        - 2 * einsum("ijab->ijab", tau190)
+        - 2 * einsum("ijab->ijab", tau194)
+        - 2 * einsum("ijab->ijab", tau198)
+        - 2 * einsum("ijab->ijab", tau202)
+        - 2 * einsum("ijab->ijab", tau206)
+        - 2 * einsum("ijab->ijab", tau211)
+        + 2 * einsum("ijab->ijab", tau215)
+        - einsum("ijab->ijab", tau218)
+        - einsum("ijab->ijab", tau223)
+        + 2 * einsum("ijab->ijab", tau226)
+        + 2 * einsum("ijab->ijab", tau230)
+        - einsum("ijab->ijab", tau235)
+        + 2 * einsum("ijab->ijab", tau240)
+        + 2 * einsum("ijab->ijab", tau243)
+        - einsum("ijab->ijab", tau246)
+        - einsum("ijab->ijab", tau249)
+        + 2 * einsum("ijab->ijab", tau252)
+        + 2 * einsum("ijab->ijab", tau256)
+        - einsum("ijab->ijab", tau259)
+        + 2 * einsum("ijab->ijab", tau262)
+        - einsum("ijab->ijab", tau265)
+        + 2 * einsum("ijab->ijab", tau268)
+        - einsum("ijab->ijab", tau272)
+        - einsum("ijab->ijab", tau276)
+        - einsum("ijab->ijab", tau280)
+        + 2 * einsum("ijab->ijab", tau283)
+        - einsum("ijab->ijab", tau286)
+        - einsum("ijab->ijab", tau289)
+        + 2 * einsum("ijab->ijab", tau292)
+        - 4 * einsum("ijab->ijab", tau295)
+    )
+
+    tau297 = (
+        einsum("jp,ji->pi", a.t2.x3, h.f.oo)
+    )
+
+    tau298 = (
+        einsum("ap,bp,ip,pj->ijab", a.t2.x1, a.t2.x2, a.t2.x4, tau297)
+    )
+
+    tau299 = (
+        einsum("bp,ab->pa", a.t2.x1, h.f.vv)
+    )
+
+    tau300 = (
+        einsum("ap,ip,jp,pb->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau299)
+    )
+
+    tau301 = (
+        einsum("wbi,jaw->ijab", h.l.pvo, tau8)
+    )
+
+    tau302 = (
+        einsum("ap,ia->pi", a.t2.x2, h.f.ov)
+    )
+
+    tau303 = (
+        einsum("ai,pi->pa", a.t1, tau302)
+    )
+
+    tau304 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau303)
+    )
+
+    tau305 = (
+        einsum("jp,ij->pi", a.t2.x4, tau123)
+    )
+
+    tau306 = (
+        einsum("ap,bp,jp,pi->ijab", a.t2.x1, a.t2.x2, a.t2.x3, tau305)
+    )
+
+    tau307 = (
+        einsum("ibw,jaw->ijab", tau0, tau8)
+    )
+
+    tau308 = (
+        einsum("piw,paw->pia", tau17, tau6)
+    )
+
+    tau309 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x4, tau308)
+    )
+
+    tau310 = (
+        einsum("piw,paw->pia", tau15, tau2)
+    )
+
+    tau311 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x3, tau310)
+    )
+
+    tau312 = (
+        einsum("ibw,jaw->ijab", tau0, tau12)
+    )
+
+    tau313 = (
+        einsum("paw,piw->pia", tau2, tau28)
+    )
+
+    tau314 = (
+        einsum("ai,pib->pab", a.t1, tau313)
+    )
+
+    tau315 = (
+        einsum("ip,jp,pab->ijab", a.t2.x3, a.t2.x4, tau314)
+    )
+
+    tau316 = (
+        einsum("paw,pbw->pab", tau6, tau85)
+    )
+
+    tau317 = (
+        einsum("bi,pab->pia", a.t1, tau316)
+    )
+
+    tau318 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x4, tau317)
+    )
+
+    tau319 = (
+        einsum("paw,pbw->pab", tau2, tau82)
+    )
+
+    tau320 = (
+        einsum("bi,pab->pia", a.t1, tau319)
+    )
+
+    tau321 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x3, tau320)
+    )
+
+    tau322 = (
+        einsum("bp,ab->pa", a.t2.x2, tau155)
+    )
+
+    tau323 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau322)
+    )
+
+    tau324 = (
+        einsum("bp,ab->pa", a.t2.x2, tau164)
+    )
+
+    tau325 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau324)
+    )
+
+    tau326 = (
+        einsum("ap,ia->pi", a.t2.x2, tau175)
+    )
+
+    tau327 = (
+        einsum("ai,pi->pa", a.t1, tau326)
+    )
+
+    tau328 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau327)
+    )
+
+    tau329 = (
+        einsum("jp,ij->pi", a.t2.x4, tau180)
+    )
+
+    tau330 = (
+        einsum("ap,bp,jp,pi->ijab", a.t2.x1, a.t2.x2, a.t2.x3, tau329)
+    )
+
+    tau331 = (
+        einsum("piw,paw->pia", tau54, tau85)
+    )
+
+    tau332 = (
+        einsum("ai,pja->pij", a.t1, tau331)
+    )
+
+    tau333 = (
+        einsum("aj,pij->pia", a.t1, tau332)
+    )
+
+    tau334 = (
+        einsum("bp,jp,pia->ijab", a.t2.x1, a.t2.x4, tau333)
+    )
+
+    tau335 = (
+        einsum("piw,paw->pia", tau59, tau82)
+    )
+
+    tau336 = (
+        einsum("ai,pja->pij", a.t1, tau335)
+    )
+
+    tau337 = (
+        einsum("aj,pij->pia", a.t1, tau336)
+    )
+
+    tau338 = (
+        einsum("bp,jp,pia->ijab", a.t2.x2, a.t2.x3, tau337)
+    )
+
+    tau339 = (
+        einsum("ap,ia->pi", a.t2.x2, tau199)
+    )
+
+    tau340 = (
+        einsum("ai,pi->pa", a.t1, tau339)
+    )
+
+    tau341 = (
+        einsum("bp,ip,jp,pa->ijab", a.t2.x1, a.t2.x3, a.t2.x4, tau340)
+    )
+
+    tau342 = (
+        einsum("jp,ij->pi", a.t2.x4, tau209)
+    )
+
+    tau343 = (
+        einsum("ap,bp,jp,pi->ijab", a.t2.x1, a.t2.x2, a.t2.x3, tau342)
+    )
+
+    tau344 = (
+        einsum("ap,pia->pi", a.t2.x1, tau183)
+    )
+
+    tau345 = (
+        einsum("iq,pi->pq", a.t2.x3, tau344)
+    )
+
+    tau346 = (
+        einsum("iq,qp->pi", a.t2.x4, tau345)
+    )
+
+    tau347 = (
+        einsum("ap,bp,ip,pj->ijab", a.t2.x1, a.t2.x2, a.t2.x4, tau346)
+    )
+
+    tau348 = (
+        einsum("iq,pi->pq", a.t2.x3, tau237)
+    )
+
+    tau349 = (
+        einsum("iq,qp->pi", a.t2.x4, tau348)
+    )
+
+    tau350 = (
+        einsum("ap,bp,ip,pj->ijab", a.t2.x1, a.t2.x2, a.t2.x4, tau349)
+    )
+
+    tau351 = (
+        einsum("iq,jq,pij->pq", a.t2.x3, a.t2.x4, tau113)
+    )
+
+    tau352 = (
+        einsum("iq,jq,qp->pij", a.t2.x3, a.t2.x4, tau351)
+    )
+
+    tau353 = (
+        einsum("ap,bp,pij->ijab", a.t2.x1, a.t2.x2, tau352)
+    )
+
+    tau354 = (
+        einsum("qw,pw->pq", tau38, tau46)
+    )
+
+    tau355 = (
+        einsum("aq,iq,qp->pia", a.t2.x2, a.t2.x3, tau354)
+    )
+
+    tau356 = (
+        einsum("ap,jp,pib->ijab", a.t2.x1, a.t2.x4, tau355)
+    )
+
+    tau357 = (
+        einsum("aq,pa->pq", a.t2.x1, tau277)
+    )
+
+    tau358 = (
+        einsum("aq,qp->pa", a.t2.x2, tau357)
+    )
+
+    tau359 = (
+        einsum("ap,ip,jp,pb->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau358)
+    )
+
+    tau360 = (
+        einsum("aq,pa->pq", a.t2.x1, tau253)
+    )
+
+    tau361 = (
+        einsum("aq,qp->pa", a.t2.x2, tau360)
+    )
+
+    tau362 = (
+        einsum("ap,ip,jp,pb->ijab", a.t2.x2, a.t2.x3, a.t2.x4, tau361)
+    )
+
+    tau363 = (
+        2 * einsum("ijab->ijab", tau298)
+        - 2 * einsum("ijab->ijab", tau300)
+        + 4 * einsum("ijab->ijab", tau301)
+        + 2 * einsum("ijab->ijab", tau304)
+        + 2 * einsum("ijab->ijab", tau306)
+        + 4 * einsum("ijab->ijab", tau307)
+        + 2 * einsum("ijab->ijab", tau309)
+        + 2 * einsum("ijab->ijab", tau311)
+        + 4 * einsum("ijab->ijab", tau312)
+        + 2 * einsum("ijab->ijab", tau315)
+        + 2 * einsum("ijab->ijab", tau318)
+        + 2 * einsum("ijab->ijab", tau321)
+        + 2 * einsum("ijab->ijab", tau323)
+        - 4 * einsum("ijab->ijab", tau325)
+        + 4 * einsum("ijab->ijab", tau328)
+        + 4 * einsum("ijab->ijab", tau330)
+        - 2 * einsum("ijab->ijab", tau334)
+        - 2 * einsum("ijab->ijab", tau338)
+        - 2 * einsum("ijab->ijab", tau341)
+        - 2 * einsum("ijab->ijab", tau343)
+        - einsum("ijab->ijab", tau347)
+        + 2 * einsum("ijab->ijab", tau350)
+        - einsum("ijab->ijab", tau353)
+        - einsum("ijab->ijab", tau356)
+        - einsum("ijab->ijab", tau359)
+        + 2 * einsum("ijab->ijab", tau362)
+    )
+
+    rt2 = (
+        einsum("wbj,iaw->abij", h.l.pvo, tau0)
+        + einsum("wai,jbw->abij", h.l.pvo, tau1)
+        + einsum("ip,jp,pab->abij", a.t2.x3, a.t2.x4, tau4) / 2
+        + einsum("jp,ip,pab->abij", a.t2.x3, a.t2.x4, tau7) / 2
+        + einsum("wai,wbj->abij", h.l.pvo, h.l.pvo)
+        + einsum("iaw,jbw->abij", tau10, tau8)
+        + einsum("jbw,iaw->abij", tau12, tau13)
+        + einsum("ap,bp,pij->abij", a.t2.x1, a.t2.x2, tau16) / 2
+        + einsum("bp,ap,pij->abij", a.t2.x1, a.t2.x2, tau19) / 2
+        + einsum("iaw,jbw->abij", tau10, tau12)
+        + einsum("ap,ip,pjb->abij", a.t2.x1, a.t2.x3, tau23)
+        + einsum("ap,ip,pjb->abij", a.t2.x2, a.t2.x4, tau27)
+        - einsum("bp,jp,pia->abij", a.t2.x1, a.t2.x3, tau32) / 2
+        - einsum("bp,jp,pia->abij", a.t2.x2, a.t2.x4, tau37) / 2
+        + einsum("ap,ip,pjb->abij", a.t2.x1, a.t2.x4, tau41) / 4
+        + einsum("bp,ip,pja->abij", a.t2.x1, a.t2.x4, tau44) / 4
+        + einsum("ap,ip,pjb->abij", a.t2.x2, a.t2.x3, tau48) / 4
+        + einsum("bp,ip,pja->abij", a.t2.x2, a.t2.x3, tau51) / 4
+        + einsum("iaw,jbw->abij", tau0, tau1)
+        + einsum("bp,jp,pia->abij", a.t2.x1, a.t2.x3, tau53) / 2
+        + einsum("bp,ip,pja->abij", a.t2.x1, a.t2.x4, tau56) / 2
+        + einsum("bp,jp,pia->abij", a.t2.x1, a.t2.x4, tau58) / 2
+        + einsum("bp,ip,pja->abij", a.t2.x2, a.t2.x3, tau61) / 2
+        + einsum("bp,jp,pia->abij", a.t2.x2, a.t2.x3, tau63) / 2
+        + einsum("bp,jp,pia->abij", a.t2.x2, a.t2.x4, tau65) / 2
+        + einsum("ap,ip,pjb->abij", a.t2.x1, a.t2.x3, tau67) / 2
+        + einsum("ap,ip,pjb->abij", a.t2.x1, a.t2.x4, tau69) / 2
+        + einsum("ap,jp,pib->abij", a.t2.x1, a.t2.x4, tau71) / 2
+        + einsum("ap,ip,pjb->abij", a.t2.x2, a.t2.x3, tau73) / 2
+        + einsum("ap,jp,pib->abij", a.t2.x2, a.t2.x3, tau75) / 2
+        + einsum("ap,ip,pjb->abij", a.t2.x2, a.t2.x4, tau77) / 2
+        + einsum("ap,bp,pij->abij", a.t2.x1, a.t2.x2, tau79) / 2
+        + einsum("bp,ap,pij->abij", a.t2.x1, a.t2.x2, tau81) / 2
+        + einsum("ap,bp,pji->abij", a.t2.x1, a.t2.x2, tau84) / 2
+        + einsum("bp,ap,pji->abij", a.t2.x1, a.t2.x2, tau87) / 2
+        + einsum("ap,bp,ip,pj->abij", a.t2.x1, a.t2.x2, a.t2.x3, tau89) / 2
+        + einsum("ap,bp,jp,pi->abij", a.t2.x1, a.t2.x2, a.t2.x4, tau91) / 2
+        + einsum("bp,ap,jp,pi->abij", a.t2.x1, a.t2.x2, a.t2.x3, tau92) / 2
+        + einsum("bp,ap,ip,pj->abij", a.t2.x1, a.t2.x2, a.t2.x4, tau93) / 2
+        - einsum("bp,jp,pia->abij", a.t2.x1, a.t2.x3, tau95)
+        - einsum("bp,jp,pia->abij", a.t2.x2, a.t2.x4, tau97)
+        - einsum("ap,ip,pjb->abij", a.t2.x1, a.t2.x3, tau99)
+        - einsum("ap,ip,pjb->abij", a.t2.x2, a.t2.x4, tau101)
+        - einsum("ap,bp,ip,pj->abij", a.t2.x1, a.t2.x2, a.t2.x3, tau104)
+        - einsum("ap,bp,jp,pi->abij", a.t2.x1, a.t2.x2, a.t2.x4, tau107)
+        - einsum("bp,ap,jp,pi->abij", a.t2.x1, a.t2.x2, a.t2.x3, tau108)
+        - einsum("bp,ap,ip,pj->abij", a.t2.x1, a.t2.x2, a.t2.x4, tau109)
+        + einsum("ip,jp,pab->abij", a.t2.x3, a.t2.x4, tau112) / 2
+        + einsum("jp,ip,pab->abij", a.t2.x3, a.t2.x4, tau115) / 2
+        + einsum("iaw,jbw->abij", tau13, tau8)
+        - einsum("ijab->abij", tau296) / 4
+        - einsum("jiba->abij", tau296) / 4
+        - einsum("ijba->abij", tau363) / 4
+        - einsum("jiab->abij", tau363) / 4
+    )
+
+    return Tensors(t1=rt1, t2=rt2)
