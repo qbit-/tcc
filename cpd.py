@@ -132,7 +132,7 @@ def ncpd_renormalize(factors, sort=True):
     """
     old_lam = factors[0]
     old_factors = list(factors[1:])
-    
+
     lam, factors = cpd_normalize(old_factors, sort=sort, merge_lam=False)
 
     if sort:
@@ -142,7 +142,6 @@ def ncpd_renormalize(factors, sort=True):
     new_lam = old_lam * lam
 
     return (new_lam, ) + factors
-
 
 
 def ncpd_initialize(ext_sizes, rank):
@@ -273,7 +272,6 @@ def ncpd_contract_free_ncpd(factors_top, factors_bottom,
     :param skip_factor: int, default None
               skip the factor number skip_factor
 
-    >>> import numpy as np
     >>> k1 = cpd_initialize([3, 3, 4], 3)
     >>> kn1 = cpd_normalize(k1, sort=False, merge_lam=True)
     >>> k2 = cpd_initialize([3, 3, 4], 3)
@@ -282,20 +280,29 @@ def ncpd_contract_free_ncpd(factors_top, factors_bottom,
     >>> s2 = ncpd_contract_free_ncpd(kn1, kn2)
     >>> np.allclose(s1, s2)
     True
-
+    >>> s3 = ncpd_contract_free_ncpd(kn1, kn2, skip_factor=0)
+    >>> np.allclose(s2, np.diag(kn1[0]) @ s3 @ np.diag(kn2[0]))
+    True
     """
     if skip_factor is not None:
-        skip_factor = skip_factor + 1
-
+        if skip_factor != 0:
+            skip_cpd = skip_factor - 1
+        else:
+            skip_cpd = None
+    else:
+        skip_cpd = None
     s = cpd_contract_free_cpd(factors_top[1:],
                               factors_bottom[1:],
-                              skip_factor=skip_factor,
+                              skip_factor=skip_cpd,
                               conjugate=conjugate)
 
     lam_top = factors_top[0]
     lam_bottom = factors_bottom[0]
 
-    return s * (lam_top[np.newaxis].T * lam_bottom)
+    if skip_factor != 0:
+        return s * (lam_top[np.newaxis].T * lam_bottom)
+    else:
+        return s
 
 
 def cpd_symmetrize(factors, permdict, adjust_scale=True):
@@ -399,14 +406,20 @@ def unfold(tensor, mode=0):
     tensor : ndarray
     mode : int, default is 0
            indexing starts at 0, therefore mode is in
-           ``range(0, tensor.ndim)``
+           ``range(0, tensor.ndim)``. If -1 is passed, then
+           `tensor` is flattened
 
     Returns
     -------
     ndarray
         unfolded_tensor of shape ``(tensor.shape[mode], -1)``
     """
-    return np.moveaxis(tensor, mode, 0).reshape((tensor.shape[mode], -1))
+    if mode > -1:
+        return np.moveaxis(tensor, mode, 0).reshape((tensor.shape[mode], -1))
+    elif mode == -1:
+        return tensor.ravel()
+    else:
+        raise ValueError('Wrong mode: {}'.format(mode))
 
 
 def fold(unfolded_tensor, mode, shape):
@@ -430,14 +443,19 @@ def fold(unfolded_tensor, mode, shape):
     ndarray
         folded_tensor of shape `shape`
     """
-    full_shape = list(shape)
-    mode_dim = full_shape.pop(mode)
-    full_shape.insert(0, mode_dim)
-    return np.moveaxis(unfolded_tensor.reshape(full_shape), 0, mode)
+    if mode > -1:
+        full_shape = list(shape)
+        mode_dim = full_shape.pop(mode)
+        full_shape.insert(0, mode_dim)
+        return np.moveaxis(unfolded_tensor.reshape(full_shape), 0, mode)
+    elif mode == -1:
+        return unfolded_tensor.reshape(full_shape)
+    else:
+        raise ValueError('Wrong mode: {}'.format(mode))
 
 
-def als_contract_cpd(factors_top, tensor_cpd,
-                     skip_factor, conjugate=False):
+def als_cpd_contract_cpd(factors_top, tensor_cpd,
+                         skip_factor, conjugate=False):
     """
     Performs the first part of the ALS step on an (already CPD decomposed)
     tensor, which is to contract "external" indices of the tensor with all
@@ -459,10 +477,66 @@ def als_contract_cpd(factors_top, tensor_cpd,
     return np.dot(tensor_cpd[skip_factor], s.T)
 
 
-def als_contract_dense(factors_top, tensor,
-                       skip_factor, conjugate=False):
+def als_ncpd_contract_ncpd(factors_top, tensor_ncpd,
+                           skip_factor, conjugate=False):
     """
-    Performs the first part of the ALS step on an (already CPD decomposed)
+    Performs the first part of the ALS step on an (already nCPD decomposed)
+    tensor, which is to contract "external" indices of the tensor with all
+    nCPD factors of the decomposition except of one, denoted by skip_factor
+    :param factors_top: iterable with nCPD decomposition
+               of the top (left) tensor
+    :param tensor_cpd: iterable with nCPD decomposition
+               of the bottom (right) tensor
+    :param skip_factor: int
+               skip the factor number skip_factor
+    :param conjugate: bool, default: False
+               conjugate the top (left) factors
+    Returns
+    -------
+           matrix
+    """
+    s = ncpd_contract_free_ncpd(factors_top, tensor_ncpd,
+                                skip_factor=skip_factor, conjugate=conjugate)
+
+    return np.dot(tensor_ncpd[skip_factor], s.T)
+
+
+def als_ncpd_contract_dense(factors_top, tensor,
+                            skip_factor, conjugate=False):
+    """
+    Performs the first part of the ALS step on a dense
+    tensor, which is to contract "external" indices of the tensor with all
+    nCPD factors of the decomposition except of one, denoted by skip_factor
+    :param factors_top: iterable with CPD decomposition
+               of the top (left) tensor
+    :param tensor: tensor to contract with
+    :param skip_factor: int
+              skip the factor number skip_factor
+    :param conjugate: bool, default: False
+               conjugate the top (left) factors
+    Returns
+    -------
+          matrix
+
+    >>> kn = ncpd_initialize([3, 3, 4], 4)
+    >>> k = kn[1:]
+    >>> t = cpd_rebuild(k)
+    >>> s1 = als_ncpd_contract_dense(kn, t, skip_factor=0)
+    >>> s2 = np.dot(t.ravel(), khatrirao(k))
+    >>> np.allclose(s1, s2)
+    True
+    """
+    if conjugate:
+        factors_top = [factor.conjugate() for factor in factors_top]
+
+    return np.dot(unfold(tensor, mode=skip_factor - 1),
+                  khatrirao(factors_top, skip_matrix=skip_factor))
+
+
+def als_cpd_contract_dense(factors_top, tensor,
+                           skip_factor, conjugate=False):
+    """
+    Performs the first part of the ALS step on a dense
     tensor, which is to contract "external" indices of the tensor with all
     CPD factors of the decomposition except of one, denoted by skip_factor
     :param factors_top: iterable with CPD decomposition
@@ -483,8 +557,56 @@ def als_contract_dense(factors_top, tensor,
                   khatrirao(factors_top, skip_matrix=skip_factor))
 
 
-def als_pseudo_inverse(factors_top, factors_bottom,
-                       skip_factor, conjugate=False, thresh=1e-10):
+def als_ncpd_pseudo_inverse(factors_top, factors_bottom,
+                            skip_factor, conjugate=False, thresh=1e-10):
+    """
+    Calculates the pseudo inverse needed in the ALS algorithm.
+
+    :param factors_top: iterable with CPD decomposition
+               of the top (left) tensor
+    :param factors_bottom: iterable with CPD decomposition
+               of the bottom (right) tensor
+    :param skip_factor: int
+              skip the factor number skip_factor
+    :param conjugate: bool, default: False
+               conjugate the top (left) factors
+    :param thresh: float, default: 1e-10
+               threshold used to calculate pseudo inverse
+    Returns
+    -------
+          matrix
+
+    >>> a = ncpd_initialize([3, 3, 4], 3)
+    >>> b = ncpd_initialize([3, 3, 4], 4)
+    >>> r = ncpd_contract_free_ncpd(a, b, skip_factor=2)
+    >>> s = als_ncpd_pseudo_inverse(a, b, skip_factor=2)
+    >>> np.allclose(np.linalg.pinv(r), s)
+    True
+    """
+
+    factors_top = list(factors_top)
+    factors_bottom = list(factors_bottom)
+    if factors_top[0].ndim == 1:
+        factors_top[0] = factors_top[0].reshape([1, -1])
+    if factors_bottom[0].ndim == 1:
+        factors_bottom[0] = factors_bottom[0].reshape([1, -1])
+
+    rank1 = factors_top[0].shape[1]
+    rank2 = factors_bottom[0].shape[1]
+
+    if conjugate:
+        factors_top = [factor.conjugate() for factor in factors_top]
+
+    pseudo_inverse = np.ones((rank1, rank2))
+    for ii, (factor1, factor2) in enumerate(zip(factors_top, factors_bottom)):
+        if ii != skip_factor:
+            pseudo_inverse *= np.dot(factor1.T, factor2)
+
+    return np.linalg.pinv(pseudo_inverse, thresh)
+
+
+def als_cpd_pseudo_inverse(factors_top, factors_bottom,
+                           skip_factor, conjugate=False, thresh=1e-10):
     """
     Calculates the pseudo inverse needed in the ALS algorithm.
 
@@ -505,7 +627,7 @@ def als_pseudo_inverse(factors_top, factors_bottom,
     >>> a = cpd_initialize([3, 3, 4], 3)
     >>> b = cpd_initialize([3, 3, 4], 4)
     >>> r = cpd_contract_free_cpd(a, b, skip_factor=2)
-    >>> s = als_pseudo_inverse(a, b, skip_factor=2)
+    >>> s = als_cpd_pseudo_inverse(a, b, skip_factor=2)
     >>> np.allclose(np.linalg.pinv(r), s)
     True
     """
@@ -524,8 +646,8 @@ def als_pseudo_inverse(factors_top, factors_bottom,
     return np.linalg.pinv(pseudo_inverse, thresh)
 
 
-def als_step_cpd(factors_top, tensor_cpd,
-                 skip_factor, conjugate=False):
+def als_cpd_step_cpd(factors_top, tensor_cpd,
+                     skip_factor, conjugate=False):
     """
     Performs one ALS update of the factor skip_factor
     for a CPD decomposed tensor
@@ -542,16 +664,16 @@ def als_step_cpd(factors_top, tensor_cpd,
           matrix - updated factor skip_factor
     """
 
-    r = als_contract_cpd(factors_top, tensor_cpd,
-                         skip_factor, conjugate=conjugate)
-    s = als_pseudo_inverse(factors_top, factors_top,
-                           skip_factor, conjugate=conjugate,
-                           thresh=1e-10)
+    r = als_cpd_contract_cpd(factors_top, tensor_cpd,
+                             skip_factor, conjugate=conjugate)
+    s = als_cpd_pseudo_inverse(factors_top, factors_top,
+                               skip_factor, conjugate=conjugate,
+                               thresh=1e-10)
     return np.dot(r, s)
 
 
-def als_step_dense(factors_top, tensor,
-                   skip_factor, conjugate=False):
+def als_cpd_step_dense(factors_top, tensor,
+                       skip_factor, conjugate=False):
     """
     Performs one ALS update of the factor skip_factor
     for a full tensor
@@ -567,11 +689,11 @@ def als_step_dense(factors_top, tensor,
           matrix - updated factor skip_factor
     """
 
-    r = als_contract_dense(factors_top, tensor,
-                           skip_factor, conjugate=conjugate)
-    s = als_pseudo_inverse(factors_top, factors_top,
-                           skip_factor, conjugate=conjugate,
-                           thresh=1e-10)
+    r = als_cpd_contract_dense(factors_top, tensor,
+                               skip_factor, conjugate=conjugate)
+    s = als_cpd_pseudo_inverse(factors_top, factors_top,
+                               skip_factor, conjugate=conjugate,
+                               thresh=1e-10)
     return np.dot(r, s)
 
 
@@ -600,9 +722,9 @@ def als_cpd(guess, tensor_cpd, complex_cpd=False, max_cycle=100):
 
     for iteration in range(max_cycle):
         for mode in range(len(tensor_cpd)):
-            factor = als_step_cpd(factors, tensor_cpd,
-                                  skip_factor=mode,
-                                  conjugate=complex_cpd)
+            factor = als_cpd_step_cpd(factors, tensor_cpd,
+                                      skip_factor=mode,
+                                      conjugate=complex_cpd)
             factors[mode] = factor
 
     return factors
@@ -633,9 +755,9 @@ def als_dense(guess, tensor, complex_cpd=False, max_cycle=100):
 
     for iteration in range(max_cycle):
         for mode in range(tensor.ndim):
-            factor = als_step_dense(factors, tensor,
-                                    skip_factor=mode,
-                                    conjugate=complex_cpd)
+            factor = als_cpd_step_dense(factors, tensor,
+                                        skip_factor=mode,
+                                        conjugate=complex_cpd)
             factors[mode] = factor
 
     return factors

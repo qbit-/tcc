@@ -34,9 +34,17 @@ def khatrirao(matrices, skip_matrix=None, reverse=False):
     >>> np.sum(khatrirao((a,b), reverse=True), 1)[2]
     31.0
     """
+    matrices = list(matrices)
+
     if skip_matrix is not None:
-        matrices = [matrices[i]
-                    for i in range(len(matrices)) if i != skip_matrix]
+        if skip_matrix > -1:
+            matrices = [matrices[i]
+                        for i in range(len(matrices)) if i != skip_matrix]
+        else:
+            raise ValueError('Wrong skip_matrix: {}'.format(skip_matrix))
+
+    if matrices[0].ndim == 1:
+        matrices[0] = np.reshape(matrices[0], [1, -1])
 
     n_columns = matrices[0].shape[1]
 
