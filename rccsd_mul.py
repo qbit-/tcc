@@ -97,6 +97,17 @@ class RCCSD_MUL(CC):
 
         return r - a.map(divide_by_inverse)
 
+    def calculate_update(self, h, a):
+        """
+        Calculate dt
+        """
+        r = self.calc_residuals(h, a)
+
+        def multiply_by_inverse(x):
+            return x * (cc_denom(h.f, x.ndim, 'mul', 'full'))
+
+        return r.map(multiply_by_inverse)
+
 
 class RCCSD_MUL_RI(RCCSD_MUL):
     """

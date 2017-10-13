@@ -273,10 +273,18 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
     Returns
     -------
     symm_factos: ndarray list, symmetrized CPD factors
+
+    >>> a = cpd_initialize([3, 3, 4, 4], 3)
+    >>> t1 = cpd_rebuild(a)
+    >>> ts = 1/2 * (t1 + t1.transpose([1, 0, 3, 2]))
+    >>> k = cpd_symmetrize(a, {(1, 0, 3, 2): ('ident', )})
+    >>> np.allclose(ts, cpd_rebuild(k))
+    True
     """
 
     if adjust_scale:
-        scaling_factor = 1 / (len(permdict) + 1)
+        nsym = len(permdict) + 1
+        scaling_factor = pow(1 / nsym, 1 / len(factors))
     else:
         scaling_factor = 1
 
@@ -334,8 +342,10 @@ def ncpd_symmetrize(norm_factors, permdict):
     lam = norm_factors[0]
     factors = norm_factors[1:]
 
-    new_lam = 1 / (len(permdict) + 1) * \
-        np.hstack((lam, ) * (len(permdict) + 1))
+    nsym = len(permdict) + 1
+    scaling_factor = pow(1 / nsym, 1 / len(factors))
+
+    new_lam = scaling_factor * np.hstack((lam, ) * nsym)
     new_factors = cpd_symmetrize(factors, permdict, adjust_scale=False)
 
     return [new_lam, ] + new_factors
@@ -590,3 +600,28 @@ def als_dense(guess, tensor, complex_cpd=False, max_cycle=100):
             factors[mode] = factor
 
     return factors
+
+
+def _demonstration_symmetry_rank():
+    """
+    This function demonstrates that a symmetrized
+    tensor has a rank which is much larger than the
+    initial rank. Errors in the CPD decomposition
+    of the symmetrized tensor with a rank equal
+    to the rank of its unsymmetric part are not small,
+    and factors of the unsymmetric part are a bad
+    initial guess for the CPD of the symmetrized tensor
+    """
+    a = cpd_initialize([3, 3, 4, 4], 3)
+    t1 = cpd_rebuild(a)
+    ts = 1 / 2 * (t1 + t1.transpose([1, 0, 3, 2]))
+    k = cpd_symmetrize(a, {(1, 0, 3, 2): ('ident', )})
+    z0 = ts - cpd_rebuild(k)
+    n = als_cpd(a, k, max_cycle=400)
+    m = als_dense(a, ts, max_cycle=400)
+    z1 = ts - cpd_rebuild(n)
+    z2 = ts - cpd_rebuild(m)
+
+    print(np.linalg.norm(z0.ravel))
+    print(np.linalg.norm(z1.ravel))
+    print(np.linalg.norm(z2.ravel))
