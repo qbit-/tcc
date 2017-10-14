@@ -744,7 +744,8 @@ def als_dense(guess, tensor, complex_cpd=False, max_cycle=100,
     >>> k = als_dense(b, a, max_cycle=100)
     >>> np.allclose(a, cpd_rebuild(k), 1e-9)
     True
-    >>> a = ncpd_rebuild(ncpd_initialize([3, 3, 4], 3))
+    >>> ac = ncpd_initialize([3, 3, 4], 3)
+    >>> a = ncpd_rebuild(ncpd_symmetrize(ac, {(1, 0, 2): ('neg', )}))
     >>> b = ncpd_initialize([3, 3, 4], 10)
     >>> k = als_dense(b, a, max_cycle=100, tensor_format='ncpd', complex_cpd=True)
     >>> np.allclose(a, ncpd_rebuild(k), 1e-9)
