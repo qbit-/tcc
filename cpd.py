@@ -389,6 +389,7 @@ def ncpd_symmetrize(norm_factors, permdict):
     -------
     symm_norm_factos: ndarray list, symmetrized nCPD factors
 
+    >>> raise NotImplemented('This function does not work, check the end of the file')
     """
 
     lam = norm_factors[0]
@@ -738,41 +739,50 @@ def als_dense(guess, tensor, complex_cpd=False, max_cycle=100,
             factors = list(ncpd_renormalize(factors, sort=False, positive_lam=True))
     return factors
 
-
-a = ncpd_rebuild(ncpd_initialize([3, 3, 4], 3))
-b = ncpd_initialize([3, 3, 4], 3)
-k = als_dense(b, a, max_cycle=10000, tensor_format='ncpd')
-tt = ncpd_rebuild(k)
-print(a - tt)
-print(k[0])
-
-a = cpd_rebuild(cpd_initialize([3, 3, 4], 3))
-b = cpd_initialize([3, 3, 4], 3)
-k = als_dense(b, a, max_cycle=10000, tensor_format='cpd')
-tt = cpd_rebuild(k)
-print(a - tt)
-print(k[0])
-
 def _demonstration_symmetry_rank():
     """
-    This function demonstrates that a symmetrized
-    tensor has a rank which is much larger than the
-    initial rank. Errors in the CPD decomposition
-    of the symmetrized tensor with a rank equal
-    to the rank of its unsymmetric part are not small,
-    and factors of the unsymmetric part are a bad
-    initial guess for the CPD of the symmetrized tensor
-    """
-    a = cpd_initialize([3, 3, 4, 4], 3)
-    t1 = cpd_rebuild(a)
-    ts = 1 / 2 * (t1 + t1.transpose([1, 0, 3, 2]))
-    k = cpd_symmetrize(a, {(1, 0, 3, 2): ('ident', )})
-    z0 = ts - cpd_rebuild(k)
-    n = als_cpd(a, k, max_cycle=400)
-    m = als_dense(a, ts, max_cycle=400)
-    z1 = ts - cpd_rebuild(n)
-    z2 = ts - cpd_rebuild(m)
+    1. This function demonstrates that a symmetrized
+    tensor has a rank which is larger than the
+    rank of its unsymmetric part. If we set the rank of the
+    unsymmetric part to R1, the errors in the CPD decomposition
+    of the symmetrized tensor with a guess having rank R1 are not small,
+    thus the rank of symmetrized tensor may be larger than
+    the rank of the unsymmetric part.
 
-    print(np.linalg.norm(z0.ravel))
-    print(np.linalg.norm(z1.ravel))
-    print(np.linalg.norm(z2.ravel))
+    2. There is no difference between decomposing full tensor
+    or its CPD decomposition, although there should be
+    a large gain in speed for decomposed tensors. 
+
+    3. Symmetrized factors, which produce symmetrized tensor
+    exactly, preserve all their weights during nCPD ALS.
+    However, a random initial guess can have different weights
+    and yield an exact decomposition. This shows that the form
+    of CPD may not be unique if factors are no independent, as is
+    in the case of symmetrized factors. Otherwise CPD is unique.
+
+    4. The minimal rank of the symmetrized tensor may be smaller than
+    the rank of its symmetrized CPD. For example, a symmetrized
+    CPD can be rank 6 and yield the symmetrized tensor exactly, but
+    there may exist an exact CPD of rank 4 of the same tensor.
+    """
+    a = cpd_initialize([3, 3, 4], 3)
+    t1 = cpd_rebuild(a)
+    ts = 1 / 2 * (t1 + t1.transpose([1, 0, 2]))
+    k = cpd_symmetrize(a, {(1, 0, 2): ('ident', )})
+    z0 = ts - cpd_rebuild(k)
+    an = cpd_normalize(a, sort=True, merge_lam=True)
+    kn = cpd_normalize(k, sort=True, merge_lam=True)
+    z1 = ts - ncpd_rebuild(kn)
+    n = als_cpd(an, kn, max_cycle=10000, tensor_format='ncpd')
+    m = als_dense(an, ts, max_cycle=10000, tensor_format='ncpd')
+    z2 = ts - ncpd_rebuild(n)
+    z3 = ts - ncpd_rebuild(m)
+    l = als_dense(kn, ts, max_cycle=10000, tensor_format='ncpd')
+    l = als_dense(kp, ts, max_cycle=10000, tensor_format='ncpd')
+    z4 = ts - ncpd_rebuild(l)
+
+    print('Symm tensor - symm CPD: {}'.format(np.linalg.norm(z0.ravel())))
+    print('Symm tensor - symm nCPD: {}'.format(np.linalg.norm(z1.ravel())))
+    print('Symm nCPD - optimized original nCPD: {}'.format(np.linalg.norm(z2.ravel())))
+    print('Symm tensor - optimized original nCPD: {}'.format(np.linalg.norm(z3.ravel())))
+    print('Symm tensor - optimized symm nCPD: {}'.format(np.linalg.norm(z4.ravel())))

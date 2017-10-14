@@ -1,3 +1,28 @@
+* ALS of dense and decomposed tensors
+  1. There is no difference between decomposing full tensor
+     or its defining CPD decomposition, although there should be
+     a large gain in speed for decomposed tensors. 
+
+* CPD of symmetric tensors
+  1. A symmetrized tensor can have a rank which is larger than the
+     rank of its unsymmetric part. For example, if the rank of the
+     unsymmetric part is 3, the errors in the CPD decomposition
+     of the symmetrized tensor with a guess having rank 3 are not small,
+     thus the rank of symmetrized tensor may be larger than
+     than the rank of the usymmetric part.
+     
+  2. Symmetrized factors, which produce symmetrized tensor
+     exactly, preserve all their weights during nCPD ALS.
+     However, a random initial guess can have different weights
+     and yield an exact decomposition. This shows that the form
+     of CPD may not be unique if factors are no independent, as is
+     in the case of symmetrized factors. Otherwise CPD is unique.
+
+  3. The minimal rank of the symmetrized tensor may be smaller than
+     the rank of its symmetrized CPD. For example, a symmetrized
+     CPD can be rank 6 and yield the symmetrized tensor exactly, but
+     there may exist an exact CPD of rank 4 of the same tensor.
+
 * CPD and nCPD
   I spent a lot of effort to make the normalized CPD ALS work.
   Normalized CPD (nCPD) is 
