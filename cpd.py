@@ -105,7 +105,7 @@ def ncpd_denormalize(factors, sort=True):
     return new_factors
 
 
-def ncpd_renormalize(factors, sort=True):
+def ncpd_renormalize(factors, sort=False, positive_lam=False):
     """
     Normalizes the columns of factors in nCPD format, in
     case the normalization was lost due to some operation on
@@ -113,9 +113,11 @@ def ncpd_renormalize(factors, sort=True):
 
     :param factors: ndarray iterable
         factor matrices in ncpd format
-    :param sort: bool, if the factors are sorted by norm
-        default True
-
+    :param sort: bool, default False
+        if the factors are sorted by norm
+    :param positive_lam: bool, default False
+        if negative weights lam have to be turned positive
+    
     Returns
     -------
     lam: ndarray
@@ -141,6 +143,10 @@ def ncpd_renormalize(factors, sort=True):
     if sort:
         order = np.argsort(new_lam)[::-1][0]
         new_lam = new_lam[:, order]
+    if positive_lam:
+        signs = np.sign(new_lam)
+        factors = (factors[0] * signs, ) + factors[1:]
+        new_lam = new_lam * signs
 
     return (new_lam, ) + factors
 
@@ -417,7 +423,7 @@ def unfold(tensor, mode=0):
     if mode > -1:
         return np.moveaxis(tensor, mode, 0).reshape((tensor.shape[mode], -1))
     elif mode == -1:
-        return tensor.ravel()
+        return tensor.reshape([1, -1])
     else:
         raise ValueError('Wrong mode: {}'.format(mode))
 
@@ -584,8 +590,9 @@ def als_pseudo_inverse(factors_top, factors_bottom,
     return np.linalg.pinv(pseudo_inverse, thresh)
 
 
-def als_cpd_step_cpd(factors_top, tensor_cpd,
-                     skip_factor, conjugate=False):
+def als_step_cpd(factors_top, tensor_cpd,
+                 skip_factor, conjugate=False,
+                 tensor_format='cpd'):
     """
     Performs one ALS update of the factor skip_factor
     for a CPD decomposed tensor
@@ -597,21 +604,26 @@ def als_cpd_step_cpd(factors_top, tensor_cpd,
                skip the factor number skip_factor
     :param conjugate: bool, default: False
                conjugate the top (left) factors
+    :param tensor_format: str, default 'cpd'
+               Format of the decomposition ('cpd' or 'ncpd')
+
     Returns
     -------
           matrix - updated factor skip_factor
     """
 
-    r = als_cpd_contract_cpd(factors_top, tensor_cpd,
-                             skip_factor, conjugate=conjugate)
-    s = als_cpd_pseudo_inverse(factors_top, factors_top,
+    r = als_contract_cpd(factors_top, tensor_cpd,
+                         skip_factor, conjugate=conjugate,
+                         tensor_format=tensor_format)
+    s = als_pseudo_inverse(factors_top, factors_top,
                                skip_factor, conjugate=conjugate,
                                thresh=1e-10)
     return np.dot(r, s)
 
 
-def als_cpd_step_dense(factors_top, tensor,
-                       skip_factor, conjugate=False):
+def als_step_dense(factors_top, tensor,
+                   skip_factor, conjugate=False,
+                   tensor_format='cpd'):
     """
     Performs one ALS update of the factor skip_factor
     for a full tensor
@@ -622,20 +634,23 @@ def als_cpd_step_dense(factors_top, tensor,
                skip the factor number skip_factor
     :param conjugate: bool, default: False
                conjugate CPD factors (needed for complex CPD)
+    :param tensor_format: str, default 'cpd'
+               Format of the decomposition ('cpd' or 'ncpd')
     Returns
     -------
           matrix - updated factor skip_factor
     """
 
-    r = als_cpd_contract_dense(factors_top, tensor,
-                               skip_factor, conjugate=conjugate)
-    s = als_cpd_pseudo_inverse(factors_top, factors_top,
+    r = als_contract_dense(factors_top, tensor,
+                           skip_factor, conjugate=conjugate,
+                           tensor_format=tensor_format)
+    s = als_pseudo_inverse(factors_top, factors_top,
                                skip_factor, conjugate=conjugate,
                                thresh=1e-10)
     return np.dot(r, s)
 
 
-def als_cpd(guess, tensor_cpd, complex_cpd=False, max_cycle=100):
+def als_cpd(guess, tensor_cpd, complex_cpd=False, max_cycle=100, tensor_format='cpd'):
     """
     Run an ALS algorithm on the CPD decomposed tensor
     :param guess: iterable with initial guess for CPD decomposition
@@ -645,6 +660,8 @@ def als_cpd(guess, tensor_cpd, complex_cpd=False, max_cycle=100):
                if complex decomposition is done
                (guess should also be complex, or this will not be enforced)
     :param max_cycle: maximal number of iterations
+    :param tensor_format: str, default 'cpd'
+               Format of the decomposition ('cpd' or 'ncpd')
 
     Returns
     -------
@@ -655,20 +672,28 @@ def als_cpd(guess, tensor_cpd, complex_cpd=False, max_cycle=100):
     >>> k = als_cpd(b, a, max_cycle=100)
     >>> np.allclose(cpd_rebuild(a), cpd_rebuild(k), 1e-10)
     True
+    >>> a = ncpd_rebuild(ncpd_initialize([3, 3, 4], 3))
+    >>> b = ncpd_initialize([3, 3, 4], 10)
+    >>> k = als_dense(b, a, max_cycle=100, tensor_format='ncpd')
+    >>> np.allclose(a, ncpd_rebuild(k), 1e-9)
+    True
     """
     factors = [factor for factor in guess]  # copy the guess
 
     for iteration in range(max_cycle):
-        for mode in range(len(tensor_cpd)):
-            factor = als_cpd_step_cpd(factors, tensor_cpd,
-                                      skip_factor=mode,
-                                      conjugate=complex_cpd)
-            factors[mode] = factor
-
+        for idx in range(len(factors)):
+            factor = als_step_cpd(factors, tensor_cpd,
+                                  skip_factor=idx,
+                                  conjugate=complex_cpd,
+                                  tensor_format=tensor_format)
+            factors[idx] = factor
+        if tensor_format == 'ncpd':
+            factors = list(ncpd_renormalize(factors, sort=False, positive_lam=True))
     return factors
 
 
-def als_dense(guess, tensor, complex_cpd=False, max_cycle=100):
+def als_dense(guess, tensor, complex_cpd=False, max_cycle=100,
+              tensor_format='cpd'):
     """
     Run an ALS algorithm on a dense tensor
 
@@ -678,6 +703,8 @@ def als_dense(guess, tensor, complex_cpd=False, max_cycle=100):
                if complex decomposition is done
                (guess should also be complex, or this will not be enforced)
     :param max_cycle: maximal number of iterations
+    :param tensor_format: str, default 'cpd'
+               Format of the decomposition ('cpd' or 'ncpd')
 
     Returns
     -------
@@ -686,20 +713,45 @@ def als_dense(guess, tensor, complex_cpd=False, max_cycle=100):
     >>> a = cpd_rebuild(cpd_initialize([3, 3, 4], 3))
     >>> b = cpd_initialize([3, 3, 4], 10)
     >>> k = als_dense(b, a, max_cycle=100)
-    >>> np.allclose(a, cpd_rebuild(k), 1e-10)
+    >>> np.allclose(a, cpd_rebuild(k), 1e-9)
+    True
+    >>> a = ncpd_rebuild(ncpd_initialize([3, 3, 4], 3))
+    >>> b = ncpd_initialize([3, 3, 4], 10)
+    >>> k = als_dense(b, a, max_cycle=100, tensor_format='ncpd')
+    >>> np.allclose(a, ncpd_rebuild(k), 1e-9)
     True
     """
     factors = [factor for factor in guess]  # copy the guess
 
     for iteration in range(max_cycle):
-        for mode in range(tensor.ndim):
-            factor = als_cpd_step_dense(factors, tensor,
-                                        skip_factor=mode,
-                                        conjugate=complex_cpd)
-            factors[mode] = factor
-
+        for idx in range(len(factors)):
+            factor = als_step_dense(factors, tensor,
+                                    skip_factor=idx,
+                                    conjugate=complex_cpd,
+                                    tensor_format=tensor_format)
+            factors[idx] = factor
+        if tensor_format == 'ncpd':
+            # Turning off sorting is important, otherwise no convergence
+            # Normalization improves convergence of lam. Also, lams may become
+            # negative if not forced positive at each iteration - not sure
+            # what this means
+            factors = list(ncpd_renormalize(factors, sort=False, positive_lam=True))
     return factors
 
+
+a = ncpd_rebuild(ncpd_initialize([3, 3, 4], 3))
+b = ncpd_initialize([3, 3, 4], 3)
+k = als_dense(b, a, max_cycle=10000, tensor_format='ncpd')
+tt = ncpd_rebuild(k)
+print(a - tt)
+print(k[0])
+
+a = cpd_rebuild(cpd_initialize([3, 3, 4], 3))
+b = cpd_initialize([3, 3, 4], 3)
+k = als_dense(b, a, max_cycle=10000, tensor_format='cpd')
+tt = cpd_rebuild(k)
+print(a - tt)
+print(k[0])
 
 def _demonstration_symmetry_rank():
     """

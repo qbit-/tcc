@@ -1,0 +1,24 @@
+* CPD and nCPD
+  I spent a lot of effort to make the normalized CPD ALS work.
+  Normalized CPD (nCPD) is 
+  t[i, .., n] = sum_{p} lam[p] * X1[i, p] * ... * Xn[n, p]), 
+  e.g. vector lam holds weights of the factors, which are normed
+  to have unit columns.
+
+  Here are the findings:
+
+  1. With nCPD we can identify zero modes in the weight 
+     vector (good). Zero modes occur presumably when the rank
+     of nCPD is excessive, e.g. is higher than the maximal rank
+     for a tensor of given dimensions.
+     Those modes are not easily seen in the usual CPD format.
+     
+  2. Lambdas can go negative themselves, but forcing them
+     to stay positive does not hurt the algorithm. 
+     The magnitude of lambdas is UNIQUE (good). 
+
+  3. Convergence of ALS slows down significanly as one approaches
+     the true rank of the tensor. However, ALS seem to be 
+     pretty robust if given enough iterations
+
+  4. nCPD code is much slower than CPD
