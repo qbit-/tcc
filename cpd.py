@@ -389,17 +389,22 @@ def ncpd_symmetrize(norm_factors, permdict):
     -------
     symm_norm_factos: ndarray list, symmetrized nCPD factors
 
-    >>> raise NotImplemented('This function does not work, check the end of the file')
+    >>> a = ncpd_initialize([3, 3, 4], 3)
+    >>> t1 = ncpd_rebuild(a)
+    >>> ts = 1/2 * (t1 + t1.transpose([1, 0, 2]))
+    >>> k = ncpd_symmetrize(a, {(1, 0, 2): ('ident', )})
+    >>> np.allclose(ts, ncpd_rebuild(k))
+    True
     """
 
     lam = norm_factors[0]
     factors = norm_factors[1:]
 
     nsym = len(permdict) + 1
-    scaling_factor = pow(1 / nsym, 1 / len(factors))
+    scaling_factor = 1 / nsym
 
-    new_lam = scaling_factor * np.hstack((lam, ) * nsym)
     new_factors = cpd_symmetrize(factors, permdict, adjust_scale=False)
+    new_lam = scaling_factor * np.hstack((lam, ) * nsym)
 
     return [new_lam, ] + new_factors
 
@@ -739,7 +744,8 @@ def als_dense(guess, tensor, complex_cpd=False, max_cycle=100,
             factors = list(ncpd_renormalize(factors, sort=False, positive_lam=True))
     return factors
 
-def _demonstration_symmetry_rank():
+
+def _demonstration_symmetry_rank(): # pragma: nocover
     """
     1. This function demonstrates that a symmetrized
     tensor has a rank which is larger than the
@@ -767,8 +773,8 @@ def _demonstration_symmetry_rank():
     """
     a = cpd_initialize([3, 3, 4], 3)
     t1 = cpd_rebuild(a)
-    ts = 1 / 2 * (t1 + t1.transpose([1, 0, 2]))
-    k = cpd_symmetrize(a, {(1, 0, 2): ('ident', )})
+    ts = 1 / 2 * (t1 - t1.transpose([1, 0, 2]))
+    k = cpd_symmetrize(a, {(1, 0, 2): ('neg', )})
     z0 = ts - cpd_rebuild(k)
     an = cpd_normalize(a, sort=True, merge_lam=True)
     kn = cpd_normalize(k, sort=True, merge_lam=True)
@@ -778,11 +784,14 @@ def _demonstration_symmetry_rank():
     z2 = ts - ncpd_rebuild(n)
     z3 = ts - ncpd_rebuild(m)
     l = als_dense(kn, ts, max_cycle=10000, tensor_format='ncpd')
-    l = als_dense(kp, ts, max_cycle=10000, tensor_format='ncpd')
     z4 = ts - ncpd_rebuild(l)
-
+    kp = ncpd_initialize([3, 3, 4], 5)
+    o = als_dense(kp, ts, max_cycle=10000, tensor_format='ncpd')
+    z5 = ts - ncpd_rebuild(o)
+    
     print('Symm tensor - symm CPD: {}'.format(np.linalg.norm(z0.ravel())))
     print('Symm tensor - symm nCPD: {}'.format(np.linalg.norm(z1.ravel())))
     print('Symm nCPD - optimized original nCPD: {}'.format(np.linalg.norm(z2.ravel())))
     print('Symm tensor - optimized original nCPD: {}'.format(np.linalg.norm(z3.ravel())))
     print('Symm tensor - optimized symm nCPD: {}'.format(np.linalg.norm(z4.ravel())))
+    print('Symm tensor - optimized nCPD of lower rank: {}'.format(np.linalg.norm(z5.ravel())))
