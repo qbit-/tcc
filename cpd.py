@@ -85,6 +85,11 @@ def ncpd_denormalize(factors, sort=True):
     >>> kk = ncpd_denormalize(kn, sort=False)
     >>> np.allclose(cpd_rebuild(k), cpd_rebuild(kk))
     True
+    >>> k = cpd_initialize([2,2],3)
+    >>> kn = cpd_normalize(k, sort=True, merge_lam=True)
+    >>> kk = ncpd_denormalize(kn, sort=True)
+    >>> np.allclose(cpd_rebuild(k), cpd_rebuild(kk))
+    True
 
     """
 
@@ -328,8 +333,14 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
 
     >>> a = cpd_initialize([3, 3, 4, 4], 3)
     >>> t1 = cpd_rebuild(a)
+    >>> ts = 1/4 * (t1 - t1.transpose([1, 0, 2, 3]) + np.conj(t1.transpose([1, 0, 3, 2])) - t1.transpose([0, 1, 3, 2]))
+    >>> k = cpd_symmetrize(a, {(1, 0, 2, 3): ('neg', ), (1, 0, 3, 2): ('conj', ), (0, 1, 3, 2): ('neg', )})
+    >>> np.allclose(ts, cpd_rebuild(k))
+    True
+    >>> a = cpd_initialize([3, 3, 4, 4], 3)
+    >>> t1 = cpd_rebuild(a)
     >>> ts = 1/2 * (t1 + t1.transpose([1, 0, 3, 2]))
-    >>> k = cpd_symmetrize(a, {(1, 0, 3, 2): ('ident', )})
+    >>> k = cpd_symmetrize(a, {(1, 0, 3, 2): ('ident', ),})
     >>> np.allclose(ts, cpd_rebuild(k))
     True
     """
@@ -352,6 +363,8 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
         return np.conj(x)
     from functools import reduce
 
+    n_factors = len(factors)
+
     new_factors = []
     for idx, factor in enumerate(factors):
         new_factor = factor * scaling_factor
@@ -361,7 +374,10 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
                 if operation == 'ident':
                     transforms.append(ident)
                 elif operation == 'neg':
-                    transforms.append(neg)
+                    if n_factors % 2 == 0 and idx == 0: # We don't want to negate
+                        transforms.append(ident)        # even number of times
+                    else:
+                        transforms.append(neg)
                 elif operation == 'conj':
                     transforms.append(conj)
                 else:
@@ -454,6 +470,13 @@ def fold(unfolded_tensor, mode, shape):
     -------
     ndarray
         folded_tensor of shape `shape`
+
+    >>> a = np.random.rand(3, 12)
+    >>> b = fold(a, 0, [3, 3, 4])
+    >>> b.shape == (3, 3, 4)
+    True
+    >>> np.allclose(fold(a.ravel(), -1, [3, 3, 4]), b)
+    True
     """
     if mode > -1:
         full_shape = list(shape)
@@ -461,7 +484,7 @@ def fold(unfolded_tensor, mode, shape):
         full_shape.insert(0, mode_dim)
         return np.moveaxis(unfolded_tensor.reshape(full_shape), 0, mode)
     elif mode == -1:
-        return unfolded_tensor.reshape(full_shape)
+        return unfolded_tensor.reshape(shape)
     else:
         raise ValueError('Wrong mode: {}'.format(mode))
 
@@ -678,10 +701,10 @@ def als_cpd(guess, tensor_cpd, complex_cpd=False, max_cycle=100, tensor_format='
     >>> k = als_cpd(b, a, max_cycle=100)
     >>> np.allclose(cpd_rebuild(a), cpd_rebuild(k), 1e-10)
     True
-    >>> a = ncpd_rebuild(ncpd_initialize([3, 3, 4], 3))
+    >>> a = ncpd_initialize([3, 3, 4], 3)
     >>> b = ncpd_initialize([3, 3, 4], 10)
-    >>> k = als_dense(b, a, max_cycle=100, tensor_format='ncpd')
-    >>> np.allclose(a, ncpd_rebuild(k), 1e-9)
+    >>> k = als_cpd(b, a, max_cycle=100, tensor_format='ncpd', complex_cpd=True)
+    >>> np.allclose(ncpd_rebuild(a), ncpd_rebuild(k), 1e-9)
     True
     """
     factors = [factor for factor in guess]  # copy the guess
@@ -723,7 +746,7 @@ def als_dense(guess, tensor, complex_cpd=False, max_cycle=100,
     True
     >>> a = ncpd_rebuild(ncpd_initialize([3, 3, 4], 3))
     >>> b = ncpd_initialize([3, 3, 4], 10)
-    >>> k = als_dense(b, a, max_cycle=100, tensor_format='ncpd')
+    >>> k = als_dense(b, a, max_cycle=100, tensor_format='ncpd', complex_cpd=True)
     >>> np.allclose(a, ncpd_rebuild(k), 1e-9)
     True
     """
