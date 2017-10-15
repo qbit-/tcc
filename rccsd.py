@@ -9,6 +9,8 @@ from tcc._rccsd import (_rccsd_calculate_energy,
 from tcc._rccsd import (_rccsd_unit_calculate_energy,
                         _rccsd_unit_calc_residuals)
 
+from tcc._rccsd import (_rccsd_ri_calculate_energy,
+                        _rccsd_ri_calc_residuals)
 
 class RCCSD(CC):
     """
@@ -156,6 +158,50 @@ class RCCSD_UNIT(RCCSD):
             t2=r.t2 - 2 * (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])
                            ) / cc_denom(h.f, 4, 'dir', 'full')
         )
+
+
+class RCCSD_DIR_RI(RCCSD):
+    """
+    This class implements RCCSD with Dirac ordered amplitudes:
+    t1: vo, t2: vvoo, usual abba residuals and RI decomposed
+    integrals.
+    """
+
+    def create_ham(self):
+        """
+        Create RI Hamiltonian (in core)
+        """
+        from tcc.interaction import HAM_SPINLESS_RI_CORE
+        return HAM_SPINLESS_RI_CORE(self)
+
+    
+    def init_amplitudes(self, ham):
+        """
+        Initialize amplitudes from interaction
+        """
+        e_ai = cc_denom(ham.f, 2, 'dir', 'full')
+        e_abij = cc_denom(ham.f, 4, 'dir', 'full')
+
+        t1 = ham.f.ov.transpose().conj() * (- e_ai)
+
+        v_vvoo = np.einsum("pia,pjb->abij", ham.l.pov, ham.l.pov).conj()
+        t2 = v_vvoo * (- e_abij)
+
+        return Tensors(t1=t1, t2=t2)
+
+    def calculate_energy(self, h, a):
+        """
+        Calculate RCCSD energy
+        """
+
+        return _rccsd_ri_calculate_energy(h, a)
+
+    def calc_residuals(self, h, a):
+        """
+        Updates residuals of the CC equations
+        """
+
+        return _rccsd_ri_calc_residuals(h, a)
 
 
 def test_mp2_energy():  # pragma: nocover
@@ -309,6 +355,36 @@ def compare_to_aq():  # pragma: nocover
     print('max r2: {}'.format(np.max(r.t2)))
 
 
+def test_cc_ri(): # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = [
+        [8, (0., 0., 0.)],
+        [1, (0., -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+
+    mol.basis = {'H': 'sto-3g',
+                 'O': 'sto-3g', }
+    mol.build()
+    rhf = scf.RHF(mol)
+    rhf.scf()  # -76.0267656731
+
+    rhf_ri = scf.density_fit(scf.RHF(mol))
+    rhf_ri.scf()
+
+    from tcc.cc_solvers import residual_diis_solver
+    from tcc.cc_solvers import classic_solver
+    from tcc.rccsd import RCCSD_DIR_RI, RCCSD
+    cc1 = RCCSD_DIR_RI(rhf_ri)
+    cc2 = RCCSD(rhf)
+
+    converged1, energy2, _ = classic_solver(
+        cc1, conv_tol_energy=-1)
+
+    converged2, energy2, _ = classic_solver(
+        cc2, conv_tol_energy=-1)
+    
 if __name__ == '__main__':
     # test_mp2_energy()
     # test_cc_hubbard()

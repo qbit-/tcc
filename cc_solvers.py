@@ -420,8 +420,10 @@ def step_solver(cc, amps=None, max_cycle=50,
     optimizer = optimizers.initialize(use_optimizer, amps, **optimizer_kwargs)
 
     for istep in range(max_cycle):
-        step = cc.calculate_update(ham, amps)
-        new_amps = amps + optimizer.update(step)
+        # step = cc.calculate_update(ham, amps)
+        # new_amps = amps + optimizer.update(step)
+        step = cc.true_update(ham, amps)
+        new_amps = optimizer.update(step)
 
         new_energy = cc.calculate_energy(ham, new_amps)
 
