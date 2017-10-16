@@ -6,36 +6,20 @@ import numpy as np
 from tcc.tensors import Tensors
 
 
-class ScalerOptimizer():
-    """
-    Simple scaling of the learning rate alpha
-    :param alpha: learning rate (scaling factor of the gradient)
-    """
-
-    def __init__(self, x, alpha=0.01):
-        """" """
-        self.alpha = alpha
-
-    def update(self, x):
-        return x * (- self.alpha)
-
-
 class MomentumOptimizer():
     """
     Momentum optimizer
     """
 
-    def __init__(self, x, alpha=0.01, beta=0.9, correct_bias=False):
+    def __init__(self, x, beta=0.9, correct_bias=False):
         """
         Initialize momentum optimizer
-        :param alpha: learning rate (scaling factor of the gradient)
         :param beta: damping factor
         :param correct_bias: if bias has to be corrected.
                              If yes then p is required
         :param p: step number
         """
         self.v = x.map(np.zeros_like)
-        self.alpha = alpha
         self.beta = beta
 
         self._correct_bias = correct_bias
@@ -52,7 +36,7 @@ class MomentumOptimizer():
             v = v / (1 - self.beta ** (self._step_number))
         self.v = v
 
-        return v * (- self.alpha)
+        return v
 
 
 class RMSPropOptimizer(MomentumOptimizer):
@@ -60,17 +44,15 @@ class RMSPropOptimizer(MomentumOptimizer):
     RMSProp optimizer
     """
 
-    def __init__(self, x, alpha=0.001, beta=0.9, epsilon=1e-10, correct_bias=False):
+    def __init__(self, x, beta=0.9, epsilon=1e-10, correct_bias=False):
         """
         Initialize momentum optimizer
-        :param alpha: learning rate (scaling factor of the gradient)
         :param beta: damping factor
         :param correct_bias: if bias has to be corrected.
                              If yes then p is required
         :param p: step number
         """
         self.v = x.map(np.zeros_like)
-        self.alpha = alpha
         self.beta = beta
         self._epsilon = epsilon
 
@@ -88,7 +70,7 @@ class RMSPropOptimizer(MomentumOptimizer):
             v = v / (1 - self.beta ** (self._step_number))
         self.v = v
 
-        return x * (- self.alpha) / ((v + self._epsilon).map(np.sqrt))
+        return x / ((v + self._epsilon).map(np.sqrt))
 
 
 class AdamOptimizer():
@@ -96,17 +78,15 @@ class AdamOptimizer():
     Combined Momentum and RMSProp methods
     """
 
-    def __init__(self, x, alpha=1, beta=0.9, gamma=0.999, epsilon=1e-10):
+    def __init__(self, x, beta=0.9, gamma=0.999, epsilon=1e-10):
         """
         Initialize the optimizer
-        :param alpha: learning rate (scaling factor of the gradient)
         :param beta: momentum coefficient
         :param gamma: rmsprop coefficient
         :param epsilon: threshold to avoid division by zero 
         """
         self.v = x.map(np.zeros_like)
         self.s = x.map(np.zeros_like)
-        self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
         self._epsilon = epsilon
@@ -127,7 +107,7 @@ class AdamOptimizer():
         s_corr = s / (1 - self.gamma ** (self._step_number))
         self.s = s_corr
 
-        return v_corr * (- self.alpha) / (s_corr.map(np.sqrt) + self._epsilon)
+        return v_corr / (s_corr.map(np.sqrt) + self._epsilon)
 
 
 class AdaMaxOptimizer():
@@ -135,16 +115,14 @@ class AdaMaxOptimizer():
     Generalizes over Adam by using infinity norm
     """
 
-    def __init__(self, x, alpha=0.002, beta=0.9, gamma=0.999):
+    def __init__(self, x, beta=0.9, gamma=0.999):
         """
         Initialize the optimizer
-        :param alpha: learning rate (scaling factor of the gradient)
         :param beta: momentum coefficient
         :param gamma: rmsprop coefficient
         """
         self.v = x.map(np.zeros_like)
         self.s = x.map(np.zeros_like)
-        self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
 
@@ -164,7 +142,7 @@ class AdaMaxOptimizer():
             x.map(np.abs), lambda x, y: np.maximum(x, y))
         self.s = s
 
-        return v_corr * (- self.alpha) / s
+        return v_corr / s
 
 
 def initialize(use_optimizer, x, **optimizer_kwargs):
@@ -172,7 +150,6 @@ def initialize(use_optimizer, x, **optimizer_kwargs):
     Initialize a proper optmizer object
     """
     dispatcher = {
-        'scale': ScalerOptimizer,
         'momentum': MomentumOptimizer,
         'rmsprop': RMSPropOptimizer,
         'adam': AdamOptimizer,

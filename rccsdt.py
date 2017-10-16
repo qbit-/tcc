@@ -103,7 +103,7 @@ class RCCSDT(CC):
             t3=g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
         )
 
-    def calculate_update(self, h, a):
+    def calculate_gradient(self, h, a):
         """
         Calculate approximate gradient of T
         """

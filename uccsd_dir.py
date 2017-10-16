@@ -68,6 +68,9 @@ class UCCSD(CC):
         """
         Calculate RCCSD energy
         """
+        # anew = Tensors(t1=Tensors(a=a.t1.a, b=a.t1.b),
+        #                t2=Tensors(aa=a.t2.aa/2, bb=a.t2.bb/2,
+        #                           ab=a.t2.ab))
         return _uccsd_calculate_energy(h, a)
 
     def calc_residuals(self, h, a):
@@ -122,7 +125,7 @@ class UCCSD(CC):
         g2_ab = (g.t2.ab + g.t2.ab.transpose([1, 0, 3, 2])) / 2
 
         g2_aa = g.t2.aa
-        g2_bb = g.t2.bb
+        g2_bb = g.t2.aa
         # g2_ab = g.t2.ab
 
         return Tensors(
@@ -141,7 +144,7 @@ class UCCSD(CC):
                     h.f.a, h.f.b, 1, 4, 'dir', 'full')),
             ))
 
-    def calculate_update(self, h, a):
+    def calculate_gradient(self, h, a):
         """
         Calculate approximate gradient of T
         """
@@ -184,8 +187,8 @@ def test_cc():   # pragma: nocover
         [1, (0., -0.757, 0.587)],
         [1, (0., 0.757, 0.587)]]
 
-    mol.basis = {'H': '3-21g',
-                 'O': '3-21g', }
+    mol.basis = {'H': 'sto-3g',
+                 'O': 'sto-3g', }
     mol.build()
     uhf = scf.UHF(mol)
     uhf.scf()  # -76.0267656731

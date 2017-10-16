@@ -273,7 +273,7 @@ class RCCSD_nCPD_LS_T_UNF(CC):
                                          x2=xs[2], x3=xs[3], x4=xs[4]))
 
     
-    def calculate_update(self, h, a):
+    def calculate_gradient(self, h, a):
         """
         Calculate dt
         """

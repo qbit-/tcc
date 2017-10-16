@@ -92,7 +92,7 @@ class RCCSD(CC):
 
         return r - a.map(divide_by_inverse)
 
-    def calculate_update(self, h, a):
+    def calculate_gradient(self, h, a):
         """
         Calculate dt
         """
