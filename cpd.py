@@ -122,7 +122,7 @@ def ncpd_renormalize(factors, sort=False, positive_lam=False):
         if the factors are sorted by norm
     :param positive_lam: bool, default False
         if negative weights lam have to be turned positive
-    
+
     Returns
     -------
     lam: ndarray
@@ -374,7 +374,7 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
                 if operation == 'ident':
                     transforms.append(ident)
                 elif operation == 'neg':
-                    if n_factors % 2 == 0 and idx == 0: # We don't want to negate
+                    if n_factors % 2 == 0 and idx == 0:  # We don't want to negate
                         transforms.append(ident)        # even number of times
                     else:
                         transforms.append(neg)
@@ -645,8 +645,8 @@ def als_step_cpd(factors_top, tensor_cpd,
                          skip_factor, conjugate=conjugate,
                          tensor_format=tensor_format)
     s = als_pseudo_inverse(factors_top, factors_top,
-                               skip_factor, conjugate=conjugate,
-                               thresh=1e-10)
+                           skip_factor, conjugate=conjugate,
+                           thresh=1e-10)
     return np.dot(r, s)
 
 
@@ -674,8 +674,8 @@ def als_step_dense(factors_top, tensor,
                            skip_factor, conjugate=conjugate,
                            tensor_format=tensor_format)
     s = als_pseudo_inverse(factors_top, factors_top,
-                               skip_factor, conjugate=conjugate,
-                               thresh=1e-10)
+                           skip_factor, conjugate=conjugate,
+                           thresh=1e-10)
     return np.dot(r, s)
 
 
@@ -717,7 +717,8 @@ def als_cpd(guess, tensor_cpd, complex_cpd=False, max_cycle=100, tensor_format='
                                   tensor_format=tensor_format)
             factors[idx] = factor
         if tensor_format == 'ncpd':
-            factors = list(ncpd_renormalize(factors, sort=False, positive_lam=True))
+            factors = list(ncpd_renormalize(
+                factors, sort=False, positive_lam=True))
     return factors
 
 
@@ -765,11 +766,12 @@ def als_dense(guess, tensor, complex_cpd=False, max_cycle=100,
             # Normalization improves convergence of lam. Also, lams may become
             # negative if not forced positive at each iteration - not sure
             # what this means
-            factors = list(ncpd_renormalize(factors, sort=False, positive_lam=True))
+            factors = list(ncpd_renormalize(
+                factors, sort=False, positive_lam=True))
     return factors
 
 
-def _demonstration_symmetry_rank(): # pragma: nocover
+def _demonstration_symmetry_rank():  # pragma: nocover
     """
     1. This function demonstrates that a symmetrized
     tensor has a rank which is larger than the
@@ -812,7 +814,7 @@ def _demonstration_symmetry_rank(): # pragma: nocover
     kp = ncpd_initialize([3, 3, 4], 5)
     o = als_dense(kp, ts, max_cycle=10000, tensor_format='ncpd')
     z5 = ts - ncpd_rebuild(o)
-    
+
     print('Symm tensor - symm CPD: {}'.format(np.linalg.norm(z0.ravel())))
     print('Symm tensor - symm nCPD: {}'.format(np.linalg.norm(z1.ravel())))
     print('Symm nCPD - optimized original nCPD: {}'.format(np.linalg.norm(z2.ravel())))
