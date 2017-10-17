@@ -198,31 +198,50 @@ class RCCSDT_CPD_LS_T(CC):
         t2x_sym = ncpd_symmetrize(t2x, {(1, 0, 3, 2): ('ident',)})
 
         # symmetrize t3 before feeding into res
-        t3x_sym = ncpd_symmetrize(t2x, {(1, 0, 3, 2): ('ident',)})
+        t3x_sym = ncpd_symmetrize(t3x, {(0, 1, 2, 5, 3, 4): ('ident',),
+                                        (0, 1, 2, 4, 5, 3): ('ident',),
+                                        (0, 1, 2, 3, 4, 5): ('ident',),
+                                        (0, 2, 1, 3, 5, 4): ('ident',),
+                                        (2, 0, 1, 5, 3, 4): ('ident',)})
 
         # Running residuals with symmetrized amplitudes is much slower,
         # but convergence is more stable. Derive unsymm equations?
         r = self.calc_residuals(
             h,
-            Tensors(t1=a.t1, t2=Tensors(zip(t2names, t2x_sym))))
+            Tensors(t1=a.t1, t2=Tensors(zip(t2names, t2x_sym)),
+                    t3=Tensors(zip(t3names, t3x_sym)))
+        )
 
         t1 = a.t1 - r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
 
-        r_d = - r.t2 * cc_denom(h.f, 4, 'dir', 'full')
+        r2_d = - r.t2 * cc_denom(h.f, 4, 'dir', 'full')
 
-        t2 = [f for f in xs1]
+        t2 = [f for f in t2x]
         for idx in range(len(t2)):
-            g = (als_contract_dense(t2, r_d, idx,
+            g = (als_contract_dense(t2, r2_d, idx,
                                     tensor_format='ncpd')
                  # here we can use unsymmetried amps as well,
                  # giving lower energy and worse convergence
-                 + als_contract_cpd(t2, xs_sym, idx,
+                 + als_contract_cpd(t2, t2x_sym, idx,
                                     tensor_format='ncpd'))
             s = als_pseudo_inverse(t2, t2, idx)
             f = np.dot(g, s)
             t2[idx] = f
 
-        return Tensors(t1=t1, t2=Tensors(zip(names_abij, t2)))
+        t3 = [f for f in t3x]
+        for idx in range(len(t2)):
+            g = (als_contract_dense(t3, r3_d, idx,
+                                    tensor_format='ncpd')
+                 # here we can use unsymmetried amps as well,
+                 # giving lower energy and worse convergence
+                 + als_contract_cpd(t3, t3x_sym, idx,
+                                    tensor_format='ncpd'))
+            s = als_pseudo_inverse(t2, t2, idx)
+            f = np.dot(g, s)
+            t2[idx] = f
+        
+        return Tensors(t1=t1, t2=Tensors(zip(names_abij, t2)),
+                       t3=Tensors(zip(t3names, t3)))
 
 
 def test_cc():   # pragma: nocover
