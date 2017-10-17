@@ -2,20 +2,25 @@ import numpy as np
 from tcc.utils import khatrirao
 
 
-def cpd_initialize(ext_sizes, rank):
+def cpd_initialize(ext_sizes, rank, init_function=None):
     """
     Initialize a CPD decomposition.
     :param ext_sizes:  ndarray
         sizes of external indices
     :param rank:  int
         rank of the CPD decomposition
-
+    :param init_function: func
+        function to call for the initialization of each factor.
+        Will be passed a single tuple with factor's size.
     Returns
     -------
     lam, factors: vector of factor norms and a tuple with factors
     """
 
-    return [np.random.rand(size, rank)
+    if init_function is None:
+        def init_function(x): return np.random.rand(*x)
+
+    return [init_function((size, rank))
             for size in ext_sizes]
 
 
@@ -156,13 +161,16 @@ def ncpd_renormalize(factors, sort=False, positive_lam=False):
     return (new_lam, ) + factors
 
 
-def ncpd_initialize(ext_sizes, rank):
+def ncpd_initialize(ext_sizes, rank, init_function=None):
     """
     Initialize a normalized CPD decomposition.
     :param ext_sizes:  ndarray
         sizes of external indices
     :param rank: int
         rank of the CPD decomposition
+    :param init_function: func
+        function to call for the initialization of each factor.
+        Will be passed a single tuple with factor's size.
 
     Returns
     -------
@@ -171,7 +179,8 @@ def ncpd_initialize(ext_sizes, rank):
     """
 
     lam, factors = cpd_normalize(
-        cpd_initialize(ext_sizes, rank),
+        cpd_initialize(ext_sizes, rank,
+                       init_function=init_function),
         sort=True)
 
     return (lam, ) + factors

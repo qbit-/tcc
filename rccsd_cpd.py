@@ -24,7 +24,7 @@ from tcc._rccsd_cpd import (
 )
 
 
-class RCCSD_CPD_LS_T(CC):
+class RCCSD_CPD_LS_T_UNIT(CC):
     """
     This class implements classic RCCSD method
     with CPD decomposed amplitudes, where we calculate
@@ -86,8 +86,6 @@ class RCCSD_CPD_LS_T(CC):
 
         names = ['x1', 'x2', 'x3', 'x4']
 
-        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
-
         return Tensors(t1=t1,
                        t2=Tensors(zip(names, xs)))
 
@@ -142,7 +140,7 @@ class RCCSD_CPD_LS_T(CC):
         )
 
 
-class RCCSD_CPD_LS_T_HUB(RCCSD_CPD_LS_T):
+class RCCSD_CPD_LS_T_HUB(CC):
     """
     This class implements classic RCCSD method
     with CPD decomposed amplitudes for Hubbard hamiltonian,
@@ -165,10 +163,11 @@ class RCCSD_CPD_LS_T_HUB(RCCSD_CPD_LS_T):
         return HAM_SPINLESS_RI_CORE_HUBBARD(self)
 
 
-class RCCSD_nCPD_LS_T_UNF(CC):
+class RCCSD_nCPD_LS_T(CC):
     """
     This implements RCCSD with nCPD decomposed amplitudes.
-    We build nCPD factors to approximate amplitudes in the least squares sense.
+    We build nCPD factors to approximate amplitudes in
+    the least squares sense.
     For the next iteration we build full T1 and T2 residuals,
     but use the structure of T2 and RI decomposed interaction. This
     results in an N^5 algorithm.
@@ -307,11 +306,11 @@ class RCCSD_nCPD_LS_T_UNF(CC):
 
         t1 = a.t1 - r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
 
-        r_d = - r.t2 * cc_denom(h.f, 4, 'dir', 'full')
+        r2_d = - r.t2 * cc_denom(h.f, 4, 'dir', 'full')
 
         t2 = [f for f in xs1]
         for idx in range(len(t2)):
-            g = (als_contract_dense(t2, r_d, idx,
+            g = (als_contract_dense(t2, r2_d, idx,
                                     tensor_format='ncpd')
                  # here we can use unsymmetried amps as well,
                  # giving lower energy and worse convergence
