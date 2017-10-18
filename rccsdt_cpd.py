@@ -10,7 +10,7 @@ from tcc.cpd import (cpd_initialize, cpd_rebuild,
                      ncpd_symmetrize, als_contract_cpd,
                      als_contract_dense, als_pseudo_inverse)
 
-from tcc._rccsdt_mul import (_rccsdt_cpd_ls_t_calculate_energy,
+from tcc._rccsdt_cpd import (_rccsdt_cpd_ls_t_calculate_energy,
                              _rccsdt_cpd_ls_t_calc_residuals)
 
 
@@ -82,8 +82,8 @@ class RCCSDT_CPD_LS_T(CC):
         t2x = cpd_initialize(t2_full.shape, self.rankt.t2)
         t2x = als_dense(t2x, t2_full, max_cycle=100)
 
-        t3x = ncpd_initialize((nvir,) * 3 + (nocc,) * 3,
-                              self.rankt.t3, init_function=np.zeros)
+        t3x = cpd_initialize((nvir,) * 3 + (nocc,) * 3,
+                             self.rankt.t3, init_function=np.zeros)
 
         return Tensors(t1=t1, t2=Tensors(zip(t2names, t2x)),
                        t3=Tensors(zip(t3names, t3x)))
@@ -192,17 +192,17 @@ class RCCSDT_CPD_LS_T(CC):
         t2x = [a.t2[key] for key in t2names]
 
         t3names = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6']
-        t2x = [a.t3[key] for key in t3names]
+        t3x = [a.t3[key] for key in t3names]
 
         # symmetrize t2 before feeding into res
-        t2x_sym = ncpd_symmetrize(t2x, {(1, 0, 3, 2): ('ident',)})
+        t2x_sym = cpd_symmetrize(t2x, {(1, 0, 3, 2): ('ident',)})
 
         # symmetrize t3 before feeding into res
-        t3x_sym = ncpd_symmetrize(t3x, {(0, 1, 2, 5, 3, 4): ('ident',),
-                                        (0, 1, 2, 4, 5, 3): ('ident',),
-                                        (0, 1, 2, 3, 4, 5): ('ident',),
-                                        (0, 2, 1, 3, 5, 4): ('ident',),
-                                        (2, 0, 1, 5, 3, 4): ('ident',)})
+        t3x_sym = cpd_symmetrize(t3x, {(0, 1, 2, 5, 3, 4): ('ident',),
+                                       (0, 1, 2, 4, 5, 3): ('ident',),
+                                       (0, 1, 2, 3, 4, 5): ('ident',),
+                                       (0, 2, 1, 3, 5, 4): ('ident',),
+                                       (2, 0, 1, 5, 3, 4): ('ident',)})
 
         # Running residuals with symmetrized amplitudes is much slower,
         # but convergence is more stable. Derive unsymm equations?
@@ -219,28 +219,37 @@ class RCCSDT_CPD_LS_T(CC):
         t2 = [f for f in t2x]
         for idx in range(len(t2)):
             g = (als_contract_dense(t2, r2_d, idx,
-                                    tensor_format='ncpd')
+                                    tensor_format='cpd')
                  # here we can use unsymmetried amps as well,
                  # giving lower energy and worse convergence
                  + als_contract_cpd(t2, t2x_sym, idx,
-                                    tensor_format='ncpd'))
+                                    tensor_format='cpd'))
             s = als_pseudo_inverse(t2, t2, idx)
             f = np.dot(g, s)
             t2[idx] = f
 
+        r3 = ((+ r.t3
+               + r.t3.transpose([0, 1, 2, 5, 3, 4])
+               + r.t3.transpose([0, 1, 2, 4, 5, 3])
+               + r.t3
+               + r.t3.transpose([0, 2, 1, 3, 5, 4])
+               + r.t3.transpose([2, 0, 1, 5, 3, 4])) / 6 *
+              cc_denom(h.f, 6, 'dir', 'full'))
+
+        r3_d = - r3 * cc_denom(h.f, 6, 'dir', 'full')
         t3 = [f for f in t3x]
         for idx in range(len(t2)):
             g = (als_contract_dense(t3, r3_d, idx,
-                                    tensor_format='ncpd')
+                                    tensor_format='cpd')
                  # here we can use unsymmetried amps as well,
                  # giving lower energy and worse convergence
                  + als_contract_cpd(t3, t3x_sym, idx,
-                                    tensor_format='ncpd'))
-            s = als_pseudo_inverse(t2, t2, idx)
+                                    tensor_format='cpd'))
+            s = als_pseudo_inverse(t3, t3, idx)
             f = np.dot(g, s)
-            t2[idx] = f
-        
-        return Tensors(t1=t1, t2=Tensors(zip(names_abij, t2)),
+            t3[idx] = f
+
+        return Tensors(t1=t1, t2=Tensors(zip(t2names, t2)),
                        t3=Tensors(zip(t3names, t3)))
 
 
@@ -260,11 +269,21 @@ def test_cc():   # pragma: nocover
     rhf.scf()
 
     from tcc.rccsdt_mul import RCCSDT_MUL_RI
-    from tcc.cc_solvers import classic_solver
-    cc = RCCSDT_MUL_RI(rhf)
+    from tcc.rccsdt_cpd import RCCSDT_CPD_LS_T
+    from tcc.cc_solvers import (classic_solver, step_solver)
+    cc1 = RCCSDT_MUL_RI(rhf)
+    cc2 = RCCSDT_CPD_LS_T(rhf, rankt={'t2': 20, 't3': 40})
 
-    converged, energy, amps = classic_solver(
-        cc, conv_tol_energy=1e-8,
+    converged1, energy1, amps1 = classic_solver(
+        cc1, conv_tol_energy=1e-8,
         max_cycle=100)
 
-    print('dE: {}'.format(energy - -1.304876e-01))
+    print('dE: {}'.format(energy1 - -1.304876e-01))
+
+    converged2, energy2, amps2 = step_solver(
+        cc2, conv_tol_energy=1e-8,
+        max_cycle=100)
+
+    import numpy as np
+    from tcc.cpd import cpd_rebuild, cpd_initialize, als_dense
+    from tcc.tensors import Tensors
