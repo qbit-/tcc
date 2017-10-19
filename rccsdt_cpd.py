@@ -16,6 +16,8 @@ from tcc._rccsdt_cpd import (_rccsdt_cpd_ls_t_calculate_energy,
 from tcc._rccsdt_cpd import (_rccsdt_ncpd_ls_t_calculate_energy,
                              _rccsdt_ncpd_ls_t_calc_residuals)
 
+from tcc._rccsdt_mul import (_rccsdt_mul_ri_calc_residuals)
+
 
 class RCCSDT_CPD_LS_T(CC):
     """
@@ -309,6 +311,7 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
         """
 
         return _rccsdt_ncpd_ls_t_calc_residuals(h, a)
+        # return _rccsdt_mul_ri_calc_residuals(h, a)
 
     def update_rhs(self, h, a, r):
         """
@@ -420,6 +423,11 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
             Tensors(t1=a.t1, t2=Tensors(zip(t2names, t2x_sym)),
                     t3=Tensors(zip(t3names, t3x_sym)))
         )
+        # r = self.calc_residuals(
+        #     h,
+        #     Tensors(t1=a.t1, t2=ncpd_rebuild(t2x_sym),
+        #             t3=ncpd_rebuild(t3x_sym))
+        # )
 
         t1 = a.t1 - r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
 
