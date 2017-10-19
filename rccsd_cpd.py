@@ -14,6 +14,7 @@ from tcc._rccsd_cpd import (
     _rccsd_cpd_ls_t_calculate_energy,
     _rccsd_cpd_ls_t_calc_residuals,
 )
+
 from tcc._rccsd_cpd import (
     _rccsd_cpd_ls_t_unf_calc_residuals,
     _rccsd_cpd_ls_t_unf_calculate_energy
@@ -59,9 +60,10 @@ class RCCSD_CPD_LS_T_UNIT(CC):
         # initialize sizes
 
         if rankt is None:
-            self.rankt = np.min((self._mos.nocc, self._mos.nvir))
+            n = np.min((self._mos.nocc, self._mos.nvir))
+            self.rankt = Tensors(t2=n)
         else:
-            self.rankt = rankt
+            self.rankt = Tensors(rankt)
 
     def create_ham(self):
         """
@@ -81,7 +83,7 @@ class RCCSD_CPD_LS_T_UNIT(CC):
         v_vovo = einsum("pia,pjb->aibj", ham.l.pov, ham.l.pov).conj()
 
         t2_full = 2 * v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
-        xs = cpd_initialize(t2_full.shape, self.rankt)
+        xs = cpd_initialize(t2_full.shape, self.rankt.t2)
         xs = als_dense(xs, t2_full, max_cycle=100)
 
         names = ['x1', 'x2', 'x3', 'x4']
@@ -117,10 +119,6 @@ class RCCSD_CPD_LS_T_UNIT(CC):
         xs = als_dense([a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
                        t2_full, max_cycle=1)
 
-        # xs = parafac(t2_full, rankt, n_iter_max=1, init='guess',
-        #              guess=[2 * a.x1[:, :rankt], 2 * a.x2[:, :rankt],
-        #                     2 * a.x3[:, :rankt], 2 * a.x4[:, :rankt]])
-
         # xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2) : ('ident',)})
 
         names = ['x1', 'x2', 'x3', 'x4']
@@ -138,29 +136,6 @@ class RCCSD_CPD_LS_T_UNIT(CC):
                               ).transpose([0, 1, 3, 2])
             ) / cc_denom(h.f, 4, 'dir', 'full')
         )
-
-
-class RCCSD_CPD_LS_T_HUB(CC):
-    """
-    This class implements classic RCCSD method
-    with CPD decomposed amplitudes for Hubbard hamiltonian,
-    where we calculate full residuals as in normal RCCSD,
-    but taking advantage of the structure of T2.
-    We then calculate CPD of T2 as a single
-    shot ALS.
-
-    Interaction is RI decomposed, T2 amplitudes are abij order.
-    """
-    @property
-    def method_name(self):
-        return 'RCCSD_CPD_LS_T_HUB'
-
-    def create_ham(self):
-        """
-        Create full Hamiltonian (in core)
-        """
-        from tcc.interaction import HAM_SPINLESS_RI_CORE_HUBBARD
-        return HAM_SPINLESS_RI_CORE_HUBBARD(self)
 
 
 class RCCSD_nCPD_LS_T(CC):
@@ -197,9 +172,10 @@ class RCCSD_nCPD_LS_T(CC):
         # initialize sizes
 
         if rankt is None:
-            self.rankt = np.min((self._mos.nocc, self._mos.nvir))
+            n = np.min((self._mos.nocc, self._mos.nvir))
+            self.rankt = Tensors(t2=n)
         else:
-            self.rankt = rankt
+            self.rankt = Tensors(rankt)
 
     def create_ham(self):
         """
@@ -219,7 +195,7 @@ class RCCSD_nCPD_LS_T(CC):
         v_vovo = einsum("pia,pjb->aibj", ham.l.pov, ham.l.pov).conj()
 
         t2_full = v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
-        xs = ncpd_initialize(t2_full.shape, self.rankt)
+        xs = ncpd_initialize(t2_full.shape, self.rankt.t2)
         xs = als_dense(xs, t2_full, max_cycle=100, tensor_format='ncpd')
         #xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
 
@@ -283,7 +259,7 @@ class RCCSD_nCPD_LS_T(CC):
 
         # Do one ALS step for each factor (with updates for every other)
         dt2 = als_dense(xs, r.t2 * (cc_denom(h.f, 4, 'dir', 'full')),
-                        self.rankt, max_cycle=1, tensor_format='ncpd')
+                        self.rankt.t2, max_cycle=1, tensor_format='ncpd')
 
         return Tensors(t1=dt1, t2=Tensors(zip(names, dt2)))
 
@@ -323,6 +299,203 @@ class RCCSD_nCPD_LS_T(CC):
         return Tensors(t1=t1, t2=Tensors(zip(names_abij, t2)))
 
 
+class RCCSD_nCPD_LS_T_HUB(RCCSD_nCPD_LS_T):
+    """
+    This class implements classic RCCSD method
+    with CPD decomposed amplitudes for Hubbard hamiltonian,
+    where we calculate full residuals as in normal RCCSD,
+    but taking advantage of the structure of T2.
+    We then calculate CPD of T2 as a single
+    shot ALS.
+
+    Interaction is RI decomposed, T2 amplitudes are abij order.
+    """
+
+    def create_ham(self):
+        """
+        Create full Hamiltonian (in core)
+        """
+        from tcc.interaction import HAM_SPINLESS_RI_CORE_HUBBARD
+        return HAM_SPINLESS_RI_CORE_HUBBARD(self)
+
+
+class RCCSD_CPD_LS_T(CC):
+    """
+    This implements RCCSD with CPD decomposed amplitudes.
+    We build CPD factors to approximate amplitudes in
+    the least squares sense.
+    For the next iteration we build full T1 and T2 residuals,
+    but use the structure of T2 and RI decomposed interaction. This
+    results in an N^5 algorithm.
+
+    TODO: Unify this with RCCSD_CPD_LS_T
+    """
+
+    def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
+                 mo_occ=None, rankt=None):
+        """
+        Initialize RCCSD
+        :param rankt: rank of the CPD decomposition of amplitudes
+        """
+        # Simply copy some parameters from RHF calculation
+        super().__init__(mf)
+
+        # Initialize molecular orbitals
+
+        if mo_energy is None:
+            mo_energy = mf.mo_energy
+        if mo_coeff is None:
+            mo_coeff = mf.mo_coeff
+        if mo_occ is None:
+            mo_occ = mf.mo_occ
+
+        from tcc.mos import SPINLESS_MOS
+        self._mos = SPINLESS_MOS(mo_coeff, mo_energy, mo_occ, frozen)
+
+        # initialize sizes
+
+        if rankt is None:
+            n = np.min((self._mos.nocc, self._mos.nvir))
+            self.rankt = Tensors(t2=n)
+        else:
+            self.rankt = Tensors(rankt)
+
+    def init_amplitudes(self, ham):
+        """
+        Initialize amplitudes from interaction
+        """
+        e_ai = cc_denom(ham.f, 2, 'dir', 'full')
+        e_abij = cc_denom(ham.f, 4, 'dir', 'full')
+
+        t1 = ham.f.ov.transpose().conj() * (- e_ai)
+        v_vovo = einsum("pia,pjb->aibj", ham.l.pov, ham.l.pov).conj()
+
+        t2_full = v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
+        xs = cpd_initialize(t2_full.shape, self.rankt.t2)
+        xs = als_dense(xs, t2_full, max_cycle=100, tensor_format='cpd')
+        #xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
+
+        names = ['x1', 'x2', 'x3', 'x4']
+
+        return Tensors(t1=t1,
+                       t2=Tensors(zip(names, xs)))
+
+    def calculate_energy(self, h, a):
+        """
+        Calculate RCCSD energy
+        Automatically generated
+        """
+        return _rccsd_cpd_ls_t_unf_calculate_energy(h, a)
+
+    def calc_residuals(self, h, a):
+        """
+        Calculates CC residuals for CC equations
+        """
+        return _rccsd_cpd_ls_t_unf_calc_residuals(h, a)
+
+    def update_rhs(self, h, a, r):
+        """
+        Updates right hand side of the CC equations, commonly referred as G
+        """
+        return Tensors(
+            t1=r.t1 - a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
+            t2=r.t2 - cpd_rebuild(
+                (a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4)
+            ) / cc_denom(h.f, 4, 'dir', 'full')
+        )
+
+    def solve_amps(self, h, a, g):
+        """
+        Solve for new amplitudes using RHS and denominator
+        """
+
+        t1 = g.t1 * (- cc_denom(h.f, 2, 'dir', 'full'))
+        t2_full = g.t2 * (- cc_denom(h.f, 4, 'dir', 'full'))
+
+        xs = als_dense([a.t2.xlam, a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
+                       t2_full, max_cycle=1, tensor_format='cpd')
+
+        return Tensors(t1=t1, t2=Tensors(x1=xs[1],
+                                         x2=xs[2], x3=xs[3], x4=xs[4]))
+
+    def calculate_gradient(self, h, a):
+        """
+        Calculate dt
+        """
+
+        names = ['x1', 'x2', 'x3', 'x4']
+        xs = [a.t2[key] for key in names]
+        # symmetrize a before feeding into res
+        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
+        r = self.calc_residuals(
+            h,
+            Tensors(t1=a.t1, t2=Tensors(zip(names, xs_sym))))
+
+        dt1 = r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
+
+        # Do one ALS step for each factor (with updates for every other)
+        dt2 = als_dense(xs, r.t2 * (cc_denom(h.f, 4, 'dir', 'full')),
+                        self.rankt.t2, max_cycle=1, tensor_format='cpd')
+
+        return Tensors(t1=dt1, t2=Tensors(zip(names, dt2)))
+
+    def calculate_update(self, h, a):
+        """
+        Calculate new amplitudes
+        """
+
+        names_abij = ['x1', 'x2', 'x3', 'x4']
+        xs1 = [a.t2[key] for key in names_abij]
+
+        # symmetrize t2 before feeding into res
+        xs_sym = cpd_symmetrize(xs1, {(1, 0, 3, 2): ('ident',)})
+
+        # Running residuals with symmetrized amplitudes is much slower,
+        # but convergence is more stable. Derive unsymm equations?
+        r = self.calc_residuals(
+            h,
+            Tensors(t1=a.t1, t2=Tensors(zip(names_abij, xs_sym))))
+
+        t1 = a.t1 - r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
+
+        r2_d = - r.t2 * cc_denom(h.f, 4, 'dir', 'full')
+
+        t2 = [f for f in xs1]
+        for idx in range(len(t2)):
+            g = (als_contract_dense(t2, r2_d, idx,
+                                    tensor_format='cpd')
+                 # here we can use unsymmetried amps as well,
+                 # giving lower energy and worse convergence
+                 + als_contract_cpd(t2, xs_sym, idx,
+                                    tensor_format='cpd'))
+            s = als_pseudo_inverse(t2, t2, idx)
+            f = np.dot(g, s)
+            t2[idx] = f
+
+        return Tensors(t1=t1, t2=Tensors(zip(names_abij, t2)))
+
+
+class RCCSD_CPD_LS_T_HUB(RCCSD_CPD_LS_T):
+    """
+    This class implements classic RCCSD method
+    with CPD decomposed amplitudes for Hubbard hamiltonian,
+    where we calculate full residuals as in normal RCCSD,
+    but taking advantage of the structure of T2.
+    We then calculate CPD of T2 as a single
+    shot ALS.
+
+    Interaction is RI decomposed, T2 amplitudes are abij order.
+    TODO: Unify this with RCCSD_nCPD_LS_T
+    """
+
+    def create_ham(self):
+        """
+        Create full Hamiltonian (in core)
+        """
+        from tcc.interaction import HAM_SPINLESS_RI_CORE_HUBBARD
+        return HAM_SPINLESS_RI_CORE_HUBBARD(self)
+
+
 def test_cc():   # pragma: nocover
     from pyscf import gto
     from pyscf import scf
@@ -343,7 +516,7 @@ def test_cc():   # pragma: nocover
     from tcc.cc_solvers import (residual_diis_solver,
                                 classic_solver, root_solver)
 
-    cc1 = RCCSD_CPD_LS_T(rhf, rankt=20)
+    cc1 = RCCSD_CPD_LS_T(rhf, rankt={'t2': 20})
     cc2 = RCCSD_MUL_RI(rhf)
 
     converged1, energy1, amps1 = classic_solver(
@@ -365,7 +538,7 @@ def test_hubbard():   # pragma: nocover
     from tcc.rccsd_cpd import RCCSD_CPD_LS_T_HUB
 
     cc1 = RCCSD_MUL_RI_HUB(rhf)
-    cc2 = RCCSD_CPD_LS_T_HUB(rhf, rankt=30)
+    cc2 = RCCSD_CPD_LS_T_HUB(rhf, rankt={'t2': 30})
 
     converged1, energy1, amps1 = classic_solver(
         cc1, lam=5, max_cycle=50)
@@ -390,12 +563,15 @@ def test_cpd_unf():
     rhf_ri.scf()  # -76.0267656731
 
     from tcc.rccsd import RCCSD, RCCSD_DIR_RI
-    from tcc.rccsd_cpd import RCCSD_nCPD_LS_T_UNF
+    from tcc.rccsd_cpd import (RCCSD_nCPD_LS_T_UNF,
+                               RCCSD_CPD_LS_T_UNF)
+
     from tcc.cc_solvers import (classic_solver,
                                 step_solver)
 
     cc1 = RCCSD_DIR_RI(rhf_ri)
-    cc2 = RCCSD_nCPD_LS_T_UNF(rhf_ri, rankt=30)
+    cc2 = RCCSD_nCPD_LS_T_UNF(rhf_ri, rankt={'t2': 30})
+    cc3 = RCCSD_CPD_LS_T_UNF(rhf_ri, rankt={'t2': 30})
 
     converged1, energy1, amps1 = classic_solver(
         cc1, conv_tol_energy=1e-8,)
@@ -408,50 +584,13 @@ def test_cpd_unf():
         cc2, conv_tol_energy=1e-8,
         beta=0, max_cycle=150)
 
-    import numpy as np
-    from tcc.cpd import cpd_rebuild, cpd_initialize, als_dense
-    from tcc.tensors import Tensors
-    xs = cpd_initialize([8, 8, 5, 5], 200)
-    t2xs = als_dense(xs, amps1.t2, max_cycle=10)
-    print('-Approximation-')
-    print(np.linalg.norm(cpd_rebuild(t2xs) - amps1.t2))
+    converged3, energy3, amps3 = classic_solver(
+        cc3, conv_tol_energy=1e-8,
+        max_cycle=50)
 
-    am = Tensors(t1=amps1.t1, t2=Tensors(x1=t2xs[0], x2=t2xs[1],
-                                         x3=t2xs[2], x4=t2xs[3]))
-    h1 = cc1.create_ham()
-    en1 = cc1.calculate_energy(h1, amps1)
-    r1 = cc1.calc_residuals(h1, amps1)
-
-    h2 = cc2.create_ham()
-    en2 = cc2.calculate_energy(h2, am)
-    print('---Energies----')
-    print(en1 - en2)
-    r2 = cc2.calc_residuals(h2, am)
-
-    print('---Residuals---')
-    print(np.max(r1.t1 - r2.t1))
-    print(np.max(r1.t2 - r2.t2))
-
-    g1 = cc1.update_rhs(h1, amps1, r1)
-    g2 = cc2.update_rhs(h2, am, r2)
-
-    print('---RHS---------')
-    print(np.max(g1.t1 - g2.t1))
-    print(np.max(g1.t2 - g2.t2))
-
-    an1 = cc1.solve_amps(h1, amps1, g1)
-    an2 = cc2.solve_amps(h2, am, g2)
-
-    print('---Amplitudes--')
-    print(np.max(an1.t1 - an2.t1))
-    an22 = [an2.t2.x1, an2.t2.x2, an2.t2.x3, an2.t2.x4]
-    print(np.max(an1.t2 - cpd_rebuild(an22)))
-
-    import pdb
-    pdb.set_trace()
-    cc2._converged = False
-    converged2, energy2, amps2 = classic_solver(
-        cc2, amps=am, conv_tol_energy=1e-8, max_cycle=2)
+    converged3, energy3, amps3 = step_solver(
+        cc3, conv_tol_energy=1e-8,
+        beta=0, max_cycle=150)
 
 
 if __name__ == '__main__':
