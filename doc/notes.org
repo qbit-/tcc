@@ -47,3 +47,11 @@
      pretty robust if given enough iterations
 
   4. nCPD code is much slower than CPD
+* Energy in CPD-RCCSD/RCCSDT
+  Energies in RCCSD/RCCSDT-CPD are quite sensitive to 
+  the symmetrizations are applied to different quantiities. 
+  Currently, we symmetrize amplitudes, as well as 
+  the residuals. We feed symmetrized amplitudes into
+  functions for calculation of residuals. This is slower
+  than running residuals on the unsymmetrized amplitudes
+  since the rank is much less in the latter case.
