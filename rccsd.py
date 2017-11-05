@@ -12,6 +12,7 @@ from tcc._rccsd import (_rccsd_unit_calculate_energy,
 from tcc._rccsd import (_rccsd_ri_calculate_energy,
                         _rccsd_ri_calc_residuals)
 
+
 class RCCSD(CC):
     """
     This class implements classic RCCSD method
@@ -103,6 +104,20 @@ class RCCSD(CC):
 
         return r.map(multiply_by_inverse)
 
+    def calculate_update(self, h, a):
+        """
+        Calculate new amplitudes in one shot
+        """
+        r = self.calc_residuals(h, a)
+
+        def multiply_by_inverse(x):
+            return x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
+
+        def divide_by_inverse(x):
+            return x / (cc_denom(h.f, x.ndim, 'dir', 'full'))
+
+        return (r - a.map(divide_by_inverse)).map(multiply_by_inverse)
+
 
 class RCCSD_UNIT(RCCSD):
     """
@@ -174,7 +189,6 @@ class RCCSD_DIR_RI(RCCSD):
         from tcc.interaction import HAM_SPINLESS_RI_CORE
         return HAM_SPINLESS_RI_CORE(self)
 
-    
     def init_amplitudes(self, ham):
         """
         Initialize amplitudes from interaction
@@ -283,7 +297,6 @@ def test_cc_step():   # pragma: nocover
     rhf = scf.RHF(mol)
     rhf.scf()  # -76.0267656731
 
-    from tcc.cc_solvers import residual_diis_solver
     from tcc.cc_solvers import step_solver, classic_solver
     from tcc.rccsd import RCCSD
     cc = RCCSD(rhf)
@@ -294,8 +307,39 @@ def test_cc_step():   # pragma: nocover
     cc._converged = False
 
     converged2, energy2, _ = step_solver(
-        cc, conv_tol_energy=-1, use_optimizer='rmsprop',
-        optimizer_kwargs=dict(alpha=1, beta=0.7),
+        cc, conv_tol_energy=1e-10,
+        beta=0.5,
+        max_cycle=100)
+
+
+def test_cc_step_diis():  # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = [
+        [8, (0., 0., 0.)],
+        [1, (0.,  -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+
+    mol.basis = {'H': 'sto-3g',
+                 'O': 'sto-3g', }
+    mol.build()
+    rhf = scf.RHF(mol)
+    rhf.scf()  # -76.0267656731
+
+    from tcc.cc_solvers import residual_diis_solver
+    from tcc.cc_solvers import update_diis_solver
+    from tcc.rccsd import RCCSD
+    cc = RCCSD(rhf)
+
+    converged1, energy1, _ = residual_diis_solver(
+        cc, conv_tol_energy=1e-10, conv_tol_res=1e-10,
+        max_cycle=100, lam=1)
+    cc._converged = False
+
+    converged2, energy2, _ = update_diis_solver(
+        cc, conv_tol_energy=1e-10, conv_tol_res=1e-10,
+        beta=0,
         max_cycle=100)
 
 
@@ -355,17 +399,16 @@ def compare_to_aq():  # pragma: nocover
     print('max r2: {}'.format(np.max(r.t2)))
 
 
-def test_cc_ri(): # pragma: nocover
+def test_cc_ri():  # pragma: nocover
     from pyscf import gto
     from pyscf import scf
     mol = gto.Mole()
     mol.atom = [
-        [8, (0., 0., 0.)],
-        [1, (0., -0.757, 0.587)],
-        [1, (0., 0.757, 0.587)]]
+        ['O', (0., 0., 0.)],
+        ['H', (0., -0.757, 0.587)],
+        ['H', (0., 0.757, 0.587)]]
 
-    mol.basis = {'H': 'sto-3g',
-                 'O': 'sto-3g', }
+    mol.basis = 'sto-3g'
     mol.build()
     rhf = scf.RHF(mol)
     rhf.scf()  # -76.0267656731
@@ -384,7 +427,8 @@ def test_cc_ri(): # pragma: nocover
 
     converged2, energy2, _ = classic_solver(
         cc2, conv_tol_energy=-1)
-    
+
+
 if __name__ == '__main__':
     # test_mp2_energy()
     # test_cc_hubbard()
