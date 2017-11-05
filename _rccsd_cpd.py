@@ -3776,7 +3776,8 @@ def _rccsd_ncpd_ls_t_unf_calc_residuals(h, a):
     )
 
     tau35 = (
-        einsum("p,q,bq,iq,qpa->piab", a.t2.xlam[0, :], a.t2.xlam[0, :], a.t2.x2, a.t2.x4, tau34)
+        einsum("p,q,bq,iq,qpa->piab",
+               a.t2.xlam[0, :], a.t2.xlam[0, :], a.t2.x2, a.t2.x4, tau34)
     )
 
     tau36 = (
@@ -4401,7 +4402,8 @@ def _rccsd_ncpd_ls_t_unf_calc_residuals(h, a):
     )
 
     tau180 = (
-        einsum("p,q,iq,jq,qpa->pija", a.t2.xlam[0, :], a.t2.xlam[0, :], a.t2.x3, a.t2.x4, tau179)
+        einsum("p,q,iq,jq,qpa->pija",
+               a.t2.xlam[0, :], a.t2.xlam[0, :], a.t2.x3, a.t2.x4, tau179)
     )
 
     tau181 = (
@@ -4847,20 +4849,34 @@ def _rccsd_ncpd_ls_t_unf_calc_residuals(h, a):
     )
 
     rt2 = (
-        einsum("p,ap,ip,jp,pb->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x3, a.t2.x4, tau0) / 2
-        + einsum("p,ap,jp,ip,pb->abij", a.t2.xlam[0, :], a.t2.x2, a.t2.x3, a.t2.x4, tau1) / 2
-        - einsum("p,bp,ap,jp,pi->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x3, tau2) / 2
-        - einsum("p,ap,bp,jp,pi->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x4, tau3) / 2
-        + einsum("p,ap,ip,jp,pb->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x3, a.t2.x4, tau6)
-        + einsum("p,ap,jp,ip,pb->abij", a.t2.xlam[0, :], a.t2.x2, a.t2.x3, a.t2.x4, tau7)
-        - einsum("p,ap,ip,jp,pb->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x3, a.t2.x4, tau10)
-        - einsum("p,ap,jp,ip,pb->abij", a.t2.xlam[0, :], a.t2.x2, a.t2.x3, a.t2.x4, tau12)
-        - einsum("p,ap,bp,jp,pi->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x4, tau16)
-        - einsum("p,bp,ap,jp,pi->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x3, tau17)
-        - einsum("p,ap,ip,jp,pb->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x3, a.t2.x4, tau19) / 2
-        - einsum("p,ap,jp,ip,pb->abij", a.t2.xlam[0, :], a.t2.x2, a.t2.x3, a.t2.x4, tau21) / 2
-        - einsum("p,ap,bp,jp,pi->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x4, tau23) / 2
-        - einsum("p,bp,ap,jp,pi->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x3, tau24) / 2
+        einsum("p,ap,ip,jp,pb->abij",
+               a.t2.xlam[0, :], a.t2.x1, a.t2.x3, a.t2.x4, tau0) / 2
+        + einsum("p,ap,jp,ip,pb->abij",
+                 a.t2.xlam[0, :], a.t2.x2, a.t2.x3, a.t2.x4, tau1) / 2
+        - einsum("p,bp,ap,jp,pi->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x3, tau2) / 2
+        - einsum("p,ap,bp,jp,pi->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x4, tau3) / 2
+        + einsum("p,ap,ip,jp,pb->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x3, a.t2.x4, tau6)
+        + einsum("p,ap,jp,ip,pb->abij",
+                 a.t2.xlam[0, :], a.t2.x2, a.t2.x3, a.t2.x4, tau7)
+        - einsum("p,ap,ip,jp,pb->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x3, a.t2.x4, tau10)
+        - einsum("p,ap,jp,ip,pb->abij",
+                 a.t2.xlam[0, :], a.t2.x2, a.t2.x3, a.t2.x4, tau12)
+        - einsum("p,ap,bp,jp,pi->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x4, tau16)
+        - einsum("p,bp,ap,jp,pi->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x3, tau17)
+        - einsum("p,ap,ip,jp,pb->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x3, a.t2.x4, tau19) / 2
+        - einsum("p,ap,jp,ip,pb->abij",
+                 a.t2.xlam[0, :], a.t2.x2, a.t2.x3, a.t2.x4, tau21) / 2
+        - einsum("p,ap,bp,jp,pi->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x4, tau23) / 2
+        - einsum("p,bp,ap,jp,pi->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x2, a.t2.x3, tau24) / 2
         - einsum("ijba->abij", tau91) / 4
         - einsum("jiab->abij", tau91) / 4
         - einsum("ijab->abij", tau198) / 4
@@ -4871,9 +4887,10 @@ def _rccsd_ncpd_ls_t_unf_calc_residuals(h, a):
         + einsum("iaw,jbw->abij", tau246, tau89)
         + einsum("p,jp,piab->abij", a.t2.xlam[0, :], a.t2.x3, tau255) / 2
         + einsum("p,jp,piab->abij", a.t2.xlam[0, :], a.t2.x4, tau263) / 2
-        - einsum("p,bp,ip,pja->abij", a.t2.xlam[0, :], a.t2.x1, a.t2.x4, tau273) / 2
-        - einsum("p,bp,ip,pja->abij", a.t2.xlam[0, :], a.t2.x2, a.t2.x3, tau277) / 2
+        - einsum("p,bp,ip,pja->abij",
+                 a.t2.xlam[0, :], a.t2.x1, a.t2.x4, tau273) / 2
+        - einsum("p,bp,ip,pja->abij",
+                 a.t2.xlam[0, :], a.t2.x2, a.t2.x3, tau277) / 2
     )
 
     return Tensors(t1=rt1, t2=rt2)
-    

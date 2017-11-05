@@ -197,7 +197,7 @@ class RCCSD_nCPD_LS_T(CC):
         t2_full = v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
         xs = ncpd_initialize(t2_full.shape, self.rankt.t2)
         xs = als_dense(xs, t2_full, max_cycle=100, tensor_format='ncpd')
-        #xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
+        # xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
 
         names = ['xlam', 'x1', 'x2', 'x3', 'x4']
 
@@ -328,7 +328,7 @@ class RCCSD_CPD_LS_T(CC):
     but use the structure of T2 and RI decomposed interaction. This
     results in an N^5 algorithm.
 
-    TODO: Unify this with RCCSD_CPD_LS_T
+    TODO: Unify this with RCCSD_nCPD_LS_T
     """
 
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
@@ -360,6 +360,13 @@ class RCCSD_CPD_LS_T(CC):
         else:
             self.rankt = Tensors(rankt)
 
+    def create_ham(self):
+        """
+        Create full Hamiltonian (in core)
+        """
+        from tcc.interaction import HAM_SPINLESS_RI_CORE
+        return HAM_SPINLESS_RI_CORE(self)
+
     def init_amplitudes(self, ham):
         """
         Initialize amplitudes from interaction
@@ -373,7 +380,7 @@ class RCCSD_CPD_LS_T(CC):
         t2_full = v_vovo.transpose([0, 2, 1, 3]) * (- e_abij)
         xs = cpd_initialize(t2_full.shape, self.rankt.t2)
         xs = als_dense(xs, t2_full, max_cycle=100, tensor_format='cpd')
-        #xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
+        # xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
 
         names = ['x1', 'x2', 'x3', 'x4']
 
@@ -412,11 +419,11 @@ class RCCSD_CPD_LS_T(CC):
         t1 = g.t1 * (- cc_denom(h.f, 2, 'dir', 'full'))
         t2_full = g.t2 * (- cc_denom(h.f, 4, 'dir', 'full'))
 
-        xs = als_dense([a.t2.xlam, a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
+        xs = als_dense([a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
                        t2_full, max_cycle=1, tensor_format='cpd')
 
-        return Tensors(t1=t1, t2=Tensors(x1=xs[1],
-                                         x2=xs[2], x3=xs[3], x4=xs[4]))
+        return Tensors(t1=t1, t2=Tensors(x1=xs[0],
+                                         x2=xs[1], x3=xs[2], x4=xs[3]))
 
     def calculate_gradient(self, h, a):
         """
@@ -563,15 +570,15 @@ def test_cpd_unf():
     rhf_ri.scf()  # -76.0267656731
 
     from tcc.rccsd import RCCSD, RCCSD_DIR_RI
-    from tcc.rccsd_cpd import (RCCSD_nCPD_LS_T_UNF,
-                               RCCSD_CPD_LS_T_UNF)
+    from tcc.rccsd_cpd import (RCCSD_nCPD_LS_T,
+                               RCCSD_CPD_LS_T)
 
     from tcc.cc_solvers import (classic_solver,
                                 step_solver)
 
     cc1 = RCCSD_DIR_RI(rhf_ri)
-    cc2 = RCCSD_nCPD_LS_T_UNF(rhf_ri, rankt={'t2': 30})
-    cc3 = RCCSD_CPD_LS_T_UNF(rhf_ri, rankt={'t2': 30})
+    cc2 = RCCSD_nCPD_LS_T(rhf_ri, rankt={'t2': 30})
+    cc3 = RCCSD_CPD_LS_T(rhf_ri, rankt={'t2': 30})
 
     converged1, energy1, amps1 = classic_solver(
         cc1, conv_tol_energy=1e-8,)
