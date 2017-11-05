@@ -144,7 +144,6 @@ class diis_single:
         self._coefftable = coefftable
         self._initialized = True
 
-
     def predict(self):
         """
         Returns next extrapolated variable
@@ -170,7 +169,7 @@ class diis_single:
 
         x = np.linalg.solve(A, b)
         c = x[:n]
-        
+
         return reduce(lambda x, y: x + y, (self._variables[ii] * c[ii]
                                            for ii in range(n)))
 
@@ -187,7 +186,8 @@ class diis_multiple(diis_single):
     """
     This class implements diis for multiple variables stored
     in a Tensors dictionary. Each variable gets it's own coefficients from
-    it's own predictors
+    it's own predictors. Predictors and variables are assumed to have same
+    keys, otherwise bad things will happen
     """
 
     def __init__(self, nvar, ndiis, dtype='real'):
@@ -240,7 +240,7 @@ class diis_multiple(diis_single):
         """
         self._check_argument(predictors)
 
-        for ii, key in enumerate(predictors):
+        for ii, key in enumerate(sorted(predictors.keys())):
             self.v[ii]._pred_key = key
             self.v[ii].push_predictor(predictors[key])
 
@@ -252,7 +252,7 @@ class diis_multiple(diis_single):
         """
         self._check_argument(variables)
 
-        for ii, key in enumerate(variables):
+        for ii, key in enumerate(sorted(variables.keys())):
             self.v[ii]._var_key = key
             self.v[ii].push_variable(variables[key])
 
@@ -276,4 +276,3 @@ class diis_multiple(diis_single):
     def _update_coefftable(self):
         raise AttributeError(
             "'diis_multiple' object has no attribute '_update_coefftable'")
-

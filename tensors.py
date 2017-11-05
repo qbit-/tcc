@@ -11,7 +11,10 @@ class Tensors(dict):
     __slots__ = ()
 
     def __getattr__(self, key):
-        return self[key]
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError
 
     def __repr__(self):
         """ Representation for Tensors
@@ -114,11 +117,11 @@ class Tensors(dict):
         return self.to_vector()
 
     # Flattening keys and converting to a shallow dict (see to_shallow_dict_items)
-    def to_shallow_dict(self, join=lambda a, b:a+'.'+b):
+    def to_shallow_dict(self, join=lambda a, b: a + '.' + b):
         """Flatten nested dictionary and merge keys"""
         return dict(to_shallow_dict_items(self, join))
 
-        
+
 def from_vector(vec, struct):
     """Rebuilds a container from a vector and a container with shapes"""
     res = Tensors()
@@ -160,12 +163,13 @@ def update_from_vector(old, vec, struct):
                 raise ValueError(err_msg)
         else:
             if isinstance(old[k], Tensors):
-                offset_inside = update_from_vector(old[k], vec[offset:], struct[k])
+                offset_inside = update_from_vector(
+                    old[k], vec[offset:], struct[k])
                 offset = offset + offset_inside
             else:
                 raise ValueError(err_msg)
     return offset
-    
+
 
 def to_vector(tensors):
     """Returns a copy of a flattened container with all contents flattened"""
@@ -199,15 +203,17 @@ def to_dict(x):
     else:
         return x
 
-            
+
 _FLAG_FIRST = object()
-def to_shallow_dict_items(d, join=add, lift=lambda x:x):
+
+
+def to_shallow_dict_items(d, join=add, lift=lambda x: x):
     """Flattens a nested dictionary efficiently. Returns an iterator
     over (newKey, value) pairs
     This code was taken from:
     https://stackoverflow.com/questions/6027558/flatten-nested-python-dictionaries-compressing-keys
     on 24/09/2017
-    
+
     >>> testData = {'a':1, 'b':2, 'c':{'aa':11, 'bb':22, 'cc':{'aaa':111}}}
     >>> from collections import OrderedDict
     >>> print(OrderedDict(sorted(to_shallow_dict_items(testData, lift=lambda x:(x,)) )))
@@ -216,9 +222,11 @@ def to_shallow_dict_items(d, join=add, lift=lambda x:x):
     OrderedDict([('a', 1), ('b', 2), ('c.aa', 11), ('c.bb', 22), ('c.cc.aaa', 111)])
     """
     results = []
+
     def visit(subdict, results, partialKey):
-        for k,v in subdict.items():
-            newKey = lift(k) if partialKey==_FLAG_FIRST else join(partialKey,lift(k))
+        for k, v in subdict.items():
+            newKey = lift(k) if partialKey == _FLAG_FIRST else join(
+                partialKey, lift(k))
             if isinstance(v, Mapping):
                 visit(v, results, newKey)
             else:
@@ -228,7 +236,8 @@ def to_shallow_dict_items(d, join=add, lift=lambda x:x):
 
 
 if __name__ == '__main__':
-    a = Tensors({'s': np.random.rand(2,2), 'd': Tensors({'a': np.ones((2,3)), 'b': np.zeros((2,2))})})
+    a = Tensors({'s': np.random.rand(2, 2), 'd': Tensors(
+        {'a': np.ones((2, 3)), 'b': np.zeros((2, 2))})})
     k = a.to_vector()
     print(k)
     print(k.shape)
@@ -241,4 +250,3 @@ if __name__ == '__main__':
     print(a)
     a.update_from_vector(k)
     print(a)
-    

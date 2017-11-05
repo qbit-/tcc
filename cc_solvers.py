@@ -9,9 +9,10 @@ from tcc.tensors import Tensors
 
 
 def residual_diis_solver(cc, amps=None, max_cycle=50,
-                         conv_tol_energy=1e-6, conv_tol_res=1e-5,
+                         conv_tol_energy=1e-8, conv_tol_res=1e-7,
                          lam=1, ndiis=5,
-                         diis_energy_tol=1e-4, max_memory=None,
+                         diis_energy_tol=1e-4,
+                         max_memory=None,
                          verbose=logger.INFO):
     """
     Carry on a CC calculation
@@ -27,6 +28,8 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
     :param verbose: verbosity level
     :rtype: converged, energy, amplitudes
     """
+    div_tol_energy = 1e20
+
     if max_memory is None:
         max_memory = cc.max_memory
 
@@ -86,6 +89,15 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
             cc._converged = True
         if abs(max_val) < conv_tol_res:
             cc._converged = True
+        if abs(dE) > div_tol_energy:
+            cc._converged = False
+            energy = np.nan
+            log.note('Warning: divergence hit in %d steps'
+                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     istep, cc.method_name,
+                     energy, dE,
+                     max_val, max_key)
+            break
         if cc._converged:
             log.note('Converged in %d steps. E(%s) = %.6e'
                      ' dE = %.6e  max(|r|) = %.6e (%s)',
@@ -168,6 +180,11 @@ def classic_solver(cc, amps=None, max_cycle=50,
         if abs(dE) > div_tol_energy:
             cc._converged = False
             energy = np.nan
+            log.note('Warning: divergence hit in %d steps'
+                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     istep, cc.method_name,
+                     energy, dE,
+                     max_val, max_key)
             break
 
         energy = new_energy
@@ -440,13 +457,19 @@ def step_solver(cc, amps=None, max_cycle=50,
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val in norm_step.items()))
 
-        if abs(new_energy - energy) < conv_tol_energy:
+        dE = new_energy - energy
+        if abs(dE) < conv_tol_energy:
             cc._converged = True
         if abs(max_val) < conv_tol_amps:
             cc._converged = True
-        if abs(new_energy - energy) > div_tol_energy:
+        if abs(dE) > div_tol_energy:
             cc._converged = False
             energy = np.nan
+            log.note('Warning: divergence hit in %d steps'
+                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     istep, cc.method_name,
+                     energy, dE,
+                     max_val, max_key)
             break
 
         energy = new_energy
@@ -455,7 +478,7 @@ def step_solver(cc, amps=None, max_cycle=50,
             log.note('Converged in %d steps E(%s) = %.6e'
                      ' dE = %.6e  max(|dT|) = %.6e (%s)',
                      istep, cc.method_name,
-                     new_energy, new_energy - energy,
+                     new_energy, dE,
                      max_val,
                      max_key)
             break
@@ -469,10 +492,10 @@ def step_solver(cc, amps=None, max_cycle=50,
 
 
 def gradient_solver(cc, amps=None, max_cycle=50,
-                conv_tol_energy=1e-6, conv_tol_amps=1e-5,
-                div_tol_energy=1e20, alpha=1,
-                use_optimizer='momentum', optimizer_kwargs={},
-                max_memory=None, verbose=logger.INFO):
+                    conv_tol_energy=1e-6, conv_tol_amps=1e-5,
+                    div_tol_energy=1e20, alpha=1,
+                    use_optimizer='momentum', optimizer_kwargs={},
+                    max_memory=None, verbose=logger.INFO):
     """
     Solves CC equations in a gradient-descent fashion.
     At each iteration an update is added to the amplitudes.
@@ -522,23 +545,29 @@ def gradient_solver(cc, amps=None, max_cycle=50,
                       key=(lambda x: abs(norm_step[x])))
         max_val = norm_step[max_key]
 
+        dE = new_energy - energy
         cput_cycle = log.timer('CC iter', *cput_cycle)
         log.info('istep = %d  E(%s) = %.6e'
                  ' dE = %.6e  max(|T|) = %.6e (%s)',
                  istep, cc.method_name,
-                 new_energy, new_energy - energy,
+                 new_energy, dE,
                  max_val, max_key)
 
         log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
                                   for field_name, val in norm_step.items()))
 
-        if abs(new_energy - energy) < conv_tol_energy:
+        if abs(dE) < conv_tol_energy:
             cc._converged = True
         if abs(max_val) < conv_tol_amps:
             cc._converged = True
-        if abs(new_energy - energy) > div_tol_energy:
+        if abs(dE) > div_tol_energy:
             cc._converged = False
             energy = np.nan
+            log.note('Warning: divergence hit in %d steps'
+                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     istep, cc.method_name,
+                     energy, dE,
+                     max_val, max_key)
             break
 
         energy = new_energy
@@ -547,9 +576,118 @@ def gradient_solver(cc, amps=None, max_cycle=50,
             log.note('Converged in %d steps E(%s) = %.6e'
                      ' dE = %.6e  max(|dT|) = %.6e (%s)',
                      istep, cc.method_name,
-                     new_energy, new_energy - energy,
+                     new_energy, dE,
                      max_val,
                      max_key)
+            break
+
+    cc._energy_corr = energy
+    cc._energy_tot = cc._scf.energy_tot() + energy
+    cc._amps = amps
+    log.timer('CC done', *cput_total)
+
+    return cc._converged, energy, amps
+
+
+def update_diis_solver(cc, amps=None, max_cycle=50,
+                       conv_tol_energy=1e-6,
+                       conv_tol_res=1e-5,
+                       beta=1, ndiis=5,
+                       diis_energy_tol=1e-4,
+                       max_memory=None,
+                       verbose=logger.INFO):
+    """
+    Carry on a CC calculation
+    :param cc: cc object
+    :param amps:  amplitudes container
+    :param max_cycle: number of cycles
+    :param conv_tol_energy: convergence tolerance for energy
+    :param conv_tol_res: convergence tolerance for amplitudes
+    :param beta: strength of the exponential averaging
+    :param ndiis: number of diis vectors
+    :param diis_energy_tol: energy tolerance to start diis iterations
+    :param max_memory: maximal amount of memory to use
+    :param verbose: verbosity level
+    :rtype: converged, energy, amplitudes
+    """
+    div_tol_energy = 1e20
+
+    if max_memory is None:
+        max_memory = cc.max_memory
+
+    log = logger.Logger(cc.stdout, verbose)
+
+    cput_cycle = cput_total = (time.clock(), time.time())
+
+    ham = cc.create_ham()
+
+    if amps is None:
+        amps = cc.init_amplitudes(ham)
+
+    diis = diis_multiple(len(amps.to_shallow_dict()), ndiis)
+
+    import tcc.optimizers as optimizers
+    momentum = optimizers.MomentumOptimizer(
+        amps, beta=beta, correct_bias=False)
+
+    energy = cc.calculate_energy(ham, amps)
+    cc._emp2 = energy
+    old_amps = amps
+    old_energy = energy
+
+    for istep in range(max_cycle):
+
+        if diis.ready:
+            amps = Tensors(diis.predict())
+
+        step = cc.calculate_update(ham, amps)
+        amps = momentum.update(step)
+        amps = amps
+        diis.push_variable(amps)
+
+        res = amps - old_amps
+        diis.push_predictor(res)
+
+        norm_res = res.map(np.linalg.norm).to_shallow_dict()
+        max_key = max(norm_res.keys(),
+                      key=(lambda x: abs(norm_res[x])))
+        max_val = norm_res[max_key]
+
+        energy = cc.calculate_energy(ham, amps)
+
+        cput_cycle = log.timer('CC iter', *cput_cycle)
+        log.info('istep = %d  E(%s) = %.6e'
+                 ' dE = %.6e  max(|dt|) = %.6e (%s)',
+                 istep, cc.method_name,
+                 energy, energy - old_energy,
+                 max_val, max_key)
+
+        log.debug('%s', ', '.join('|{}| = {:.6e}'.format(field_name, val)
+                                  for field_name, val in norm_res.items()))
+
+        dE = energy - old_energy
+        old_amps = amps
+        old_energy = energy
+
+        if abs(dE) < conv_tol_energy:
+            cc._converged = True
+        if abs(max_val) < conv_tol_res:
+            cc._converged = True
+        if abs(dE) > div_tol_energy:
+            cc._converged = False
+            energy = np.nan
+            log.note('Warning: divergence hit in %d steps'
+                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     istep, cc.method_name,
+                     energy, dE,
+                     max_val, max_key)
+            break
+        if cc._converged:
+            log.note('Converged in %d steps. E(%s) = %.6e'
+                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     istep, cc.method_name,
+                     energy, dE,
+                     max_val, max_key)
             break
 
     cc._energy_corr = energy
