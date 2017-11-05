@@ -55,3 +55,23 @@
   functions for calculation of residuals. This is slower
   than running residuals on the unsymmetrized amplitudes
   since the rank is much less in the latter case.
+* Updates in CPD-RCCSD/CPD-RCCSDT
+  CPD-RCCSD can not be solved using gradient updates, 
+  because CPD decompositions of R*D and T can not be 
+  done separately, those CPDs are not additive. 
+  There is a dependence of every factor in ALS 
+  update on the updates of previous factors, hence 
+  we can not separate decompositions for two independent 
+  tensors (R*D and T). The whole procedure has to be done 
+  at once.
+* Symmetry is crucial!
+  Maintaining a proper symmetry of amplitude tensors 
+  is crucial in Coupled Cluster. Breaking of this symmetry
+  leads to divergence! For example, CC expressions obtained
+  from projecting \bar{H} agains unitary group generators 
+  are much more stable than the ones obtained by an 
+  unsymmetric projection and can be converged to lower 
+  numerical thresholds. 
+  
+  In the context of CC-CPD those symmetries have to be maintained 
+  by symmetrizing CPD tensors.
