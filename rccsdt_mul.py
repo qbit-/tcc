@@ -128,6 +128,21 @@ class RCCSDT_MUL_RI(CC):
         return dt.map(multiply_by_inverse)
 
 
+class RCCSDT_MUL_RI_HUB(RCCSDT_MUL_RI):
+    """
+    This class implements classic RCCSDT method with
+    t1: vo, t2: vvoo, t3: vvvooo ordered amplitudes
+    and RI decomposed integrals for Hubbard hamiltonian
+    """
+
+    def create_ham(self):
+        """
+        Create full Hamiltonian (in core)
+        """
+        from tcc.interaction import HAM_SPINLESS_RI_CORE_HUBBARD
+        return HAM_SPINLESS_RI_CORE_HUBBARD(self)
+
+
 def test_cc():   # pragma: nocover
     from pyscf import gto
     from pyscf import scf
