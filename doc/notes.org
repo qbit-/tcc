@@ -75,3 +75,33 @@
   
   In the context of CC-CPD those symmetries have to be maintained 
   by symmetrizing CPD tensors.
+* Idea about new method
+  Rank constrained CC methods are good in 
+  strong correlation regime, but miss a lot of 
+  weak correlation. The positive effect of 
+  rank constraints in strong correlation regime 
+  lays in the fact that decomposed amplitudes are
+  regularized, and hence only relevant 
+  excitations get more norm in CC ansatz. In contrast,
+  when full amplitudes are used in CC, all excitations 
+  are treated equally at convergence, which results in 
+  overcorrelation, hence the norm is pumped into 
+  irrelevant excitations at the same scale as to the 
+  relevant ones. Hence, more correct wavefunction 
+  should not be a solution of residual equations, 
+  if residuals are defined as <1| \bar{H} |0> = r1 etc.
+  
+  What if we modify the residuals so that important 
+  correlations are emphasized? It can be done in the
+  extended ansatz, e.g.
+  \bar{H} = exp(Z) exp(-T) H exp(T)
+
+hence the idea of the method:
+
+  - Solve normal CC with rank constraints. 
+  - Set Z = T^{H}
+  - Solve extended ansatz r1 = <1| exp(Z) exp(-T) H exp(T) | 0> etc
+    with larger ranks, while keeping Z fixed.
+  - If this won't break the solution, then set Z = T^{H}
+    and increase rank again
+  - Iterate until energy convergence for different ranks?
