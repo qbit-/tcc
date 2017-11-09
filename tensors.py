@@ -14,7 +14,7 @@ class Tensors(dict):
         try:
             return self[key]
         except KeyError:
-            raise AttributeError
+            raise AttributeError('Wrong attribute: {}'.format(key))
 
     def __repr__(self):
         """ Representation for Tensors
@@ -116,10 +116,55 @@ class Tensors(dict):
         """Alias to to_vector() method"""
         return self.to_vector()
 
-    # Flattening keys and converting to a shallow dict (see to_shallow_dict_items)
+    # Flattening keys and converting to a shallow dict
+    # (see to_shallow_dict_items)
     def to_shallow_dict(self, join=lambda a, b: a + '.' + b):
         """Flatten nested dictionary and merge keys"""
         return dict(to_shallow_dict_items(self, join))
+
+    def to_generator(self):
+        """Yields dictionary values in order of sorted(keys())"""
+        for key in sorted(self.keys()):
+            yield self[key]
+
+    def to_list(self):
+        """Yields dictionary values in order of sorted(keys())"""
+        return [self[key] for key in sorted(self.keys())]
+
+
+def from_shallow_dict(shdict, separator='.'):
+    """
+    Transforms a shallow dictionary to full
+    Tensors structure
+    """
+    res = Tensors()
+
+    def _group_by_prefix(items, separator):
+        groupdict = {}
+        for item in items:
+            prefix, *rest = item.split(separator)
+            if prefix not in groupdict.keys():
+                if rest == []:
+                    groupdict[prefix] = []
+                else:
+                    kk = item.lstrip(prefix + separator)
+                    groupdict[prefix] = [kk, ]
+            else:
+                if rest == []:
+                    raise('No subitem in nested item or repeated key!')
+                kk = item.lstrip(prefix + separator)
+                groupdict[prefix].append(kk)
+        return groupdict
+
+    groupdict = _group_by_prefix(shdict.keys(), separator)
+    for key, val in groupdict.items():
+        if val == []:
+            res[key] = shdict[key]
+        else:
+            res[key] = from_shallow_dict(
+                {name: shdict[key + separator + name]
+                 for name in groupdict[key]})
+    return res
 
 
 def from_vector(vec, struct):

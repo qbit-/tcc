@@ -19,9 +19,19 @@ from tcc._rccsd_cpd import (
     _rccsd_cpd_ls_t_unf_calc_residuals,
     _rccsd_cpd_ls_t_unf_calculate_energy
 )
+
 from tcc._rccsd_cpd import (
     _rccsd_ncpd_ls_t_unf_calc_residuals,
     _rccsd_ncpd_ls_t_unf_calculate_energy
+)
+
+from tcc._rccsd_cpd import (
+    _rccsd_cpd_ls_t_true_calculate_energy,
+    _rccsd_cpd_ls_t_true_calc_r1,
+    _rccsd_cpd_ls_t_true_calc_r21,
+    _rccsd_cpd_ls_t_true_calc_r22,
+    _rccsd_cpd_ls_t_true_calc_r23,
+    _rccsd_cpd_ls_t_true_calc_r24,
 )
 
 
@@ -246,22 +256,8 @@ class RCCSD_nCPD_LS_T(CC):
         """
         Calculate dt
         """
-
-        names = ['xlam', 'x1', 'x2', 'x3', 'x4']
-        xs = [a.t2[key] for key in names]
-        # symmetrize a before feeding into res
-        xs_sym = ncpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
-        r = self.calc_residuals(
-            h,
-            Tensors(t1=a.t1, t2=Tensors(zip(names, xs_sym))))
-
-        dt1 = r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
-
-        # Do one ALS step for each factor (with updates for every other)
-        dt2 = als_dense(xs, r.t2 * (cc_denom(h.f, 4, 'dir', 'full')),
-                        self.rankt.t2, max_cycle=1, tensor_format='ncpd')
-
-        return Tensors(t1=dt1, t2=Tensors(zip(names, dt2)))
+        raise NotImplemented('RCCSD-nCPD can not be calculated'
+                             ' as gradient update')
 
     def calculate_update(self, h, a):
         """
@@ -426,25 +422,8 @@ class RCCSD_CPD_LS_T(CC):
                                          x2=xs[1], x3=xs[2], x4=xs[3]))
 
     def calculate_gradient(self, h, a):
-        """
-        Calculate dt
-        """
-
-        names = ['x1', 'x2', 'x3', 'x4']
-        xs = [a.t2[key] for key in names]
-        # symmetrize a before feeding into res
-        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
-        r = self.calc_residuals(
-            h,
-            Tensors(t1=a.t1, t2=Tensors(zip(names, xs_sym))))
-
-        dt1 = r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
-
-        # Do one ALS step for each factor (with updates for every other)
-        dt2 = als_dense(xs, r.t2 * (cc_denom(h.f, 4, 'dir', 'full')),
-                        self.rankt.t2, max_cycle=1, tensor_format='cpd')
-
-        return Tensors(t1=dt1, t2=Tensors(zip(names, dt2)))
+        raise NotImplemented('RCCSD-CPD can not be solved using'
+                             'gradient updates.')
 
     def calculate_update(self, h, a):
         """
@@ -501,6 +480,76 @@ class RCCSD_CPD_LS_T_HUB(RCCSD_CPD_LS_T):
         """
         from tcc.interaction import HAM_SPINLESS_RI_CORE_HUBBARD
         return HAM_SPINLESS_RI_CORE_HUBBARD(self)
+
+
+class RCCSD_CPD_LS_T_TRUE(RCCSD_CPD_LS_T):
+    """
+    Final trial RCCSD code, where updates to the
+    CPD factors are calculated with true N^4 scaling.
+    It is, however, much much slower then N^6 code
+    """
+
+    def calculate_energy(self, h, a):
+        """
+        Calculate RCCSD energy
+        """
+        return _rccsd_cpd_ls_t_true_calculate_energy(h, a)
+
+    def _calculate_r2d_projection(self, sel, h, a, b, d):
+        """
+        Calculate projection of R2 * D2 on dT/dX_{sel}
+        sel - selects the component matrix X
+        """
+        if sel == 'x1':
+            return _rccsd_cpd_ls_t_true_calc_r21(h, a, b, d)
+        elif sel == 'x2':
+            return _rccsd_cpd_ls_t_true_calc_r22(h, a, b, d)
+        elif sel == 'x3':
+            return _rccsd_cpd_ls_t_true_calc_r23(h, a, b, d)
+        elif sel == 'x4':
+            return _rccsd_cpd_ls_t_true_calc_r24(h, a, b, d)
+        else:
+            raise ValueError('Wrong index: {}'.format(sel))
+
+    def calculate_update(self, h, a):
+        """
+        Calculate new amplitudes
+        """
+        names_abij = sorted(a.t2.keys())
+        xs = [elem for elem in a.t2.to_generator()]
+
+        # symmetrize t2 before feeding into res
+        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
+        a_sym = Tensors(t1=a.t1, t2=Tensors(zip(names_abij, xs_sym)))
+
+        # Running residuals with symmetrized amplitudes is much slower,
+        # but convergence is more stable. Derive unsymm equations?
+        r1 = _rccsd_cpd_ls_t_true_calc_r1(
+            h,
+            a_sym)
+
+        t1 = a.t1 - r1 * (cc_denom(h.f, 2, 'dir', 'full'))
+
+        namesd_abij = ['d1', 'd2', 'd3', 'd4']
+        d = Tensors(t2=Tensors(
+            zip(namesd_abij, cc_denom(h.f, 4, 'dir', 'cpd'))))
+
+        new_a = Tensors(t1=t1,
+                        t2=Tensors(zip(names_abij, xs)))
+
+        for idx, name in enumerate(sorted(a_sym.t2.keys())):
+            g = (- self._calculate_r2d_projection(name, h, a_sym, new_a, d)
+                 # here we can use unsymmetried amps as well,
+                 # giving lower energy and worse convergence
+                 + als_contract_cpd(new_a.t2.to_list(), a_sym.t2.to_list(),
+                                    idx,
+                                    tensor_format='cpd'))
+            s = als_pseudo_inverse(new_a.t2.to_list(),
+                                   new_a.t2.to_list(), idx)
+            f = np.dot(g, s)
+            new_a.t2[name] = f
+
+        return new_a
 
 
 def test_cc():   # pragma: nocover
@@ -600,5 +649,143 @@ def test_cpd_unf():
         beta=0, max_cycle=150)
 
 
+def test_update_diis_solver():
+    from tcc.hubbard import hubbard_from_scf
+    from pyscf import scf
+    N = 6
+    U = 4
+    USE_PBC = 'y'
+    rhf = hubbard_from_scf(scf.RHF, N, N, U, USE_PBC)
+    rhf.scf()  # -76.0267656731
+
+    from tcc.rccsd import RCCSD_UNIT
+    from tcc.rccsd_cpd import (RCCSD_nCPD_LS_T_HUB)
+
+    cc1 = RCCSD_UNIT(rhf)
+    cc2 = RCCSD_nCPD_LS_T_HUB(rhf, rankt={'t2': 30})
+
+    from tcc.cc_solvers import (residual_diis_solver,
+                                update_diis_solver,
+                                classic_solver)
+    cc1._converged = False
+    converged1, energy1, amps1 = residual_diis_solver(
+        cc1, conv_tol_energy=1e-8, lam=3, max_cycle=100)
+
+    cc2._converged = False
+    converged2, energy2, amps2 = update_diis_solver(
+        cc2, conv_tol_energy=1e-8,
+        conv_tol_res=1e-8,
+        beta=0.666,
+        max_cycle=100)
+
+    cc2._converged = False
+    converged2, energy2, amps2 = classic_solver(
+        cc2, conv_tol_energy=1e-8,
+        conv_tol_amps=1e-8,
+        lam=3,
+        max_cycle=100)
+
+
+def test_cpd_equals_ncpd():
+    from tcc.hubbard import hubbard_from_scf
+    from pyscf import scf
+    N = 6
+    U = 4
+    USE_PBC = 'y'
+    rhf = hubbard_from_scf(scf.RHF, N, N, U, USE_PBC)
+    rhf.scf()  # -76.0267656731
+
+    from tcc.rccsd_cpd import (RCCSD_nCPD_LS_T_HUB,
+                               RCCSD_CPD_LS_T_HUB)
+
+    cc1 = RCCSD_CPD_LS_T_HUB(rhf, rankt={'t2': 30})
+    cc2 = RCCSD_nCPD_LS_T_HUB(rhf, rankt={'t2': 30})
+
+    from tcc.cc_solvers import (residual_diis_solver,
+                                update_diis_solver,
+                                classic_solver)
+    cc1._converged = False
+    converged1, energy1, amps1 = classic_solver(
+        cc1, conv_tol_energy=1e-8,
+        conv_tol_amps=1e-8,
+        lam=3,
+        max_cycle=140)
+
+    cc2._converged = False
+    converged2, energy2, amps2 = classic_solver(
+        cc2, conv_tol_energy=1e-8,
+        conv_tol_amps=1e-8,
+        lam=3,
+        max_cycle=140)
+
+    print(energy2 - energy1)
+
+
+def test_rccsd_cpd_true():
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = [
+        [8, (0., 0., 0.)],
+        [1, (0., -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+
+    mol.basis = '3-21g'
+    mol.build()
+    rhf_ri = scf.density_fit(scf.RHF(mol))
+    rhf_ri.scf()
+
+    from tcc.rccsd_cpd import (RCCSD_CPD_LS_T,
+                               RCCSD_CPD_LS_T_TRUE)
+
+    cc1 = RCCSD_CPD_LS_T(rhf_ri, rankt={'t2': 30})
+    cc2 = RCCSD_CPD_LS_T_TRUE(rhf_ri, rankt={'t2': 30})
+
+    from tcc.cc_solvers import (update_diis_solver,
+                                classic_solver)
+
+    converged1, energy1, amps1 = update_diis_solver(
+        cc1, conv_tol_energy=1e-8,
+        conv_tol_res=1e-8,
+        beta=0.666,
+        max_cycle=140)
+
+    converged2, energy2, amps2 = update_diis_solver(
+        cc2, conv_tol_energy=1e-8,
+        conv_tol_res=1e-8,
+        beta=0.666,
+        max_cycle=140)
+
+
+def profile_cpd_true():
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = [
+        [8, (0., 0., 0.)],
+        [1, (0., -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+
+    mol.basis = '3-21g'
+    mol.build()
+    rhf_ri = scf.density_fit(scf.RHF(mol))
+    rhf_ri.scf()
+
+    from tcc.rccsd_cpd import (RCCSD_CPD_LS_T,
+                               RCCSD_CPD_LS_T_TRUE)
+
+    cc1 = RCCSD_CPD_LS_T(rhf_ri, rankt={'t2': 30})
+    cc2 = RCCSD_CPD_LS_T_TRUE(rhf_ri, rankt={'t2': 30})
+
+    from tcc.cc_solvers import (update_diis_solver,
+                                classic_solver)
+
+    converged2, energy2, amps2 = update_diis_solver(
+        cc2, conv_tol_energy=1e-8,
+        conv_tol_res=1e-8,
+        beta=0.666,
+        max_cycle=140)
+
+
 if __name__ == '__main__':
-    test_hubbard()
+    profile_cpd_true()

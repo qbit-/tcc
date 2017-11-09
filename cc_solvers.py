@@ -6,6 +6,7 @@ from scipy.optimize import root, minimize
 from tcc.diis import diis_multiple
 import tcc.tensors as tensors
 from tcc.tensors import Tensors
+from tcc.tensors import from_shallow_dict
 
 
 def residual_diis_solver(cc, amps=None, max_cycle=50,
@@ -620,7 +621,7 @@ def update_diis_solver(cc, amps=None, max_cycle=50,
     if amps is None:
         amps = cc.init_amplitudes(ham)
 
-    diis = diis_multiple(len(amps), ndiis)
+    diis = diis_multiple(len(amps.to_shallow_dict()), ndiis)
 
     import tcc.optimizers as optimizers
     momentum = optimizers.MomentumOptimizer(
@@ -634,15 +635,15 @@ def update_diis_solver(cc, amps=None, max_cycle=50,
     for istep in range(max_cycle):
 
         if diis.ready:
-            amps = Tensors(diis.predict())
+            amps = from_shallow_dict(diis.predict())
 
         step = cc.calculate_update(ham, amps)
         amps = momentum.update(step)
         amps = amps
-        diis.push_variable(amps)
+        diis.push_variable(amps.to_shallow_dict())
 
         res = amps - old_amps
-        diis.push_predictor(res)
+        diis.push_predictor(res.to_shallow_dict())
 
         norm_res = res.map(np.linalg.norm).to_shallow_dict()
         max_key = max(norm_res.keys(),
