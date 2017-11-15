@@ -105,3 +105,33 @@ hence the idea of the method:
   - If this won't break the solution, then set Z = T^{H}
     and increase rank again
   - Iterate until energy convergence for different ranks?
+
+    UPDATE: This will likely lead just to ECCSD result at convergence
+    (possibly with lower error?)
+    Solving for T improves right state, and solving for Z
+    improves left state. However, the ultimate method should
+    be hierarchical, and improve both sides (left and right) iteratively,
+    e.g. it has to act somehow on e^{T}|0> as on a new reference.
+
+* Another idea about new method
+  After reading "A Canonical Transformation Theory from Extended Normal Ordering"
+  from Chan and Yanai and combining with my and Tom's thoughts, here is another idea:
+  
+  Unsymmetric way:
+  - Transform H with T: \bar{H} = exp(-T) H exp(T)
+  - Solve for T from T = <2| \bar{H} |0>
+  - Average \bar{H} to two body terms only
+  - Repeat transformation
+  - To avoid overfitting the use of low rank amplitudes is necessary here
+    The rank should be Nelectron/2 (it was found that RCCSD never overcorrelates
+    in this case)
+
+  Symmetric way:
+  - Transform H with T and Z: \dbar{H} = exp(Z) exp(-T) H exp(T) exp(-Z)
+  - Average \dbar{H} to two body \dbar{H}2
+  - Solve for T from T = <2| \dbar{H} |0> and for Z from Z = <0| \dbar{H} |2>
+  - Repeat transformation
+  - This can be done with full T and Z as ECC does not break in strong correlation regime.
+    Tom says that truncating the number of bodies 
+    sequentially as \bar{H}2 = trunc(\hbar{H}) = trunc(exp(-T) H exp(T))
+    \dbar{H}2 = trunc(exp(Z) \bar{H}2 exp(-Z)) does not work well
