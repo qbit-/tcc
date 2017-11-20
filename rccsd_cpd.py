@@ -34,6 +34,11 @@ from tcc._rccsd_cpd import (
     _rccsd_cpd_ls_t_true_calc_r24,
 )
 
+from tcc._rccsd import (
+    _rccsd_ri_calculate_energy,
+    _rccsd_ri_calc_residuals
+)
+
 
 class RCCSD_CPD_LS_T_UNIT(CC):
     """
@@ -225,7 +230,16 @@ class RCCSD_nCPD_LS_T(CC):
         """
         Calculates CC residuals for CC equations
         """
-        return _rccsd_ncpd_ls_t_unf_calc_residuals(h, a)
+        # return _rccsd_ncpd_ls_t_unf_calc_residuals(h, a)
+        # residuals are calculated with full amps for speed
+
+        amps = Tensors(
+            t1=a.t1,
+            t2=ncpd_rebuild([a.t2.xlam,
+                             a.t2.x1, a.t2.x2,
+                             a.t2.x3, a.t2.x4]))
+
+        return _rccsd_ri_calc_residuals(h, amps)
 
     def update_rhs(self, h, a, r):
         """
@@ -394,7 +408,16 @@ class RCCSD_CPD_LS_T(CC):
         """
         Calculates CC residuals for CC equations
         """
-        return _rccsd_cpd_ls_t_unf_calc_residuals(h, a)
+        # return _rccsd_cpd_ls_t_unf_calc_residuals(h, a)
+        # residuals are calculated with full amps for speed
+
+        amps = Tensors(
+            t1=a.t1,
+            t2=cpd_rebuild([a.t2.xlam,
+                            a.t2.x1, a.t2.x2,
+                            a.t2.x3, a.t2.x4]))
+
+        return _rccsd_ri_calc_residuals(h, amps)
 
     def update_rhs(self, h, a, r):
         """
@@ -671,12 +694,17 @@ def test_update_diis_solver():
     converged1, energy1, amps1 = residual_diis_solver(
         cc1, conv_tol_energy=1e-8, lam=3, max_cycle=100)
 
+    import pickle
+    with open('test_amps.p', 'rb') as fp:
+        ampsi = pickle.load(fp)
+
     cc2._converged = False
     converged2, energy2, amps2 = update_diis_solver(
         cc2, conv_tol_energy=1e-8,
         conv_tol_res=1e-8,
         beta=0.666,
-        max_cycle=100)
+        max_cycle=100,
+        amps=ampsi)
 
     cc2._converged = False
     converged2, energy2, amps2 = classic_solver(
