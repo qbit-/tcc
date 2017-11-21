@@ -163,32 +163,8 @@ class RCCSDT_CPD_LS_T(CC):
         """
         Solving for new T amlitudes using RHS and denominator
         """
-        t2names = ['x1', 'x2', 'x3', 'x4']
-        t3names = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6']
-
-        r = self.calc_residuals(h, a)
-        r3 = ((+ r.t3
-               + r.t3.transpose([0, 1, 2, 5, 3, 4])
-               + r.t3.transpose([0, 1, 2, 4, 5, 3])
-               + r.t3
-               + r.t3.transpose([0, 2, 1, 3, 5, 4])
-               + r.t3.transpose([2, 0, 1, 5, 3, 4])) / 6 *
-              cc_denom(h.f, 6, 'dir', 'full'))
-
-        dt1 = r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
-        dt2x = als_dense([a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
-                         r.t2 * (cc_denom(h.f, 4, 'dir', 'full')),
-                         self.rankt.t2, max_cycle=1,
-                         tensor_format='cpd')
-        dt3x = als_dense([a.t3.x1, a.t3.x2, a.t3.x3,
-                          a.t3.x4, a.t3.x5, a.t3.x6],
-                         r3 * (cc_denom(h.f, 6, 'dir', 'full')),
-                         self.rankt.t3, max_cycle=1,
-                         tensor_format='cpd')
-
-        return Tensors(
-            t1=dt1, t2=Tensors(zip(t2names, dt2x)),
-            t3=Tensors(zip(t3names, dt3x)))
+        raise NotImplemented('CC-CPD can not be implemented'
+                             ' as a gradient descent')
 
     def calculate_update(self, h, a):
         """
@@ -371,32 +347,8 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
         """
         Solving for new T amlitudes using RHS and denominator
         """
-        t2names = ['x1', 'x2', 'x3', 'x4']
-        t3names = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6']
-
-        r = self.calc_residuals(h, a)
-        r3 = ((+ r.t3
-               + r.t3.transpose([0, 1, 2, 5, 3, 4])
-               + r.t3.transpose([0, 1, 2, 4, 5, 3])
-               + r.t3
-               + r.t3.transpose([0, 2, 1, 3, 5, 4])
-               + r.t3.transpose([2, 0, 1, 5, 3, 4])) / 6 *
-              cc_denom(h.f, 6, 'dir', 'full'))
-
-        dt1 = r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
-        dt2x = als_dense([a.t2.xlam, a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
-                         r.t2 * (cc_denom(h.f, 4, 'dir', 'full')),
-                         self.rankt.t2, max_cycle=1,
-                         tensor_format='ncpd')
-        dt3x = als_dense([a.t3.xlam, a.t3.x1, a.t3.x2, a.t3.x3,
-                          a.t3.x4, a.t3.x5, a.t3.x6],
-                         r3 * (cc_denom(h.f, 6, 'dir', 'full')),
-                         self.rankt.t3, max_cycle=1,
-                         tensor_format='ncpd')
-
-        return Tensors(
-            t1=dt1, t2=Tensors(zip(t2names, dt2x)),
-            t3=Tensors(zip(t3names, dt3x)))
+        raise NotImplemented('CC-CPD can not be implemented as a'
+                             'gradient descent')
 
     def calculate_update(self, h, a):
         """
@@ -575,30 +527,8 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
         """
         Solving for new T amlitudes using RHS and denominator
         """
-        t3names = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6']
-
-        r = self.calc_residuals(h, a)
-        r3 = (1 / 6 * (+ r.t3
-                       + r.t3.transpose([0, 1, 2, 5, 3, 4])
-                       + r.t3.transpose([0, 1, 2, 4, 5, 3])
-                       + r.t3
-                       + r.t3.transpose([0, 2, 1, 3, 5, 4])
-                       + r.t3.transpose([2, 0, 1, 5, 3, 4])) *
-              cc_denom(h.f, 6, 'dir', 'full'))
-
-        dt1 = r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
-        dt2 = (+ r.t2
-               + r.t2.transpose([1, 0, 3, 2])) / 2 * (
-                   cc_denom(h.f, 2, 'dir', 'full'))
-        dt3x = als_dense([a.t3.xlam, a.t3.x1, a.t3.x2, a.t3.x3,
-                          a.t3.x4, a.t3.x5, a.t3.x6],
-                         r3 * (cc_denom(h.f, 6, 'dir', 'full')),
-                         self.rankt.t3, max_cycle=1,
-                         tensor_format='ncpd')
-
-        return Tensors(
-            t1=dt1, t2=dt2,
-            t3=Tensors(zip(t3names, dt3x)))
+        raise NotImplemented('CC-CPD can not be implemented'
+                             ' as a gradient descent')
 
     def calculate_update(self, h, a):
         """
