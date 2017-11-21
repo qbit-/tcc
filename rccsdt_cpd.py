@@ -513,12 +513,18 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
 
         t2_full = 1 / 2 * ((g.t2 + g.t2.transpose([1, 0, 3, 2])) *
                            (- cc_denom(h.f, g.t2.ndim, 'dir', 'full')))
-        g3 = 1 / 6 * (+ g.t3
+        # Apply symmetrizers. This set is not complete, but seems
+        # sufficient
+        # upper indices
+        g3 = 1 / 9 * (+ g.t3
+                      + g.t3.transpose([2, 0, 1, 3, 4, 5])
+                      + g.t3.transpose([1, 2, 0, 3, 4, 5])
                       + g.t3.transpose([0, 1, 2, 5, 3, 4])
+                      + g.t3.transpose([1, 0, 2, 4, 3, 5])
+                      + g.t3.transpose([2, 1, 0, 4, 3, 5])
+                      + g.t3.transpose([2, 0, 1, 4, 5, 3])
                       + g.t3.transpose([0, 1, 2, 4, 5, 3])
-                      + g.t3.transpose([0, 1, 2, 3, 4, 5])
-                      + g.t3.transpose([0, 2, 1, 3, 5, 4])
-                      + g.t3.transpose([2, 1, 0, 5, 4, 3]))
+                      + g.t3.transpose([1, 2, 0, 4, 5, 3]))
 
         t3_full = g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
 
@@ -549,11 +555,19 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
         t3x = [a.t3[key] for key in t3names]
 
         # symmetrize t3 before feeding into res
-        t3x_sym = ncpd_symmetrize(t3x, {(0, 1, 2, 5, 3, 4): ('ident',),
-                                        (0, 1, 2, 4, 5, 3): ('ident',),
-                                        (0, 1, 2, 3, 4, 5): ('ident',),
-                                        (0, 2, 1, 3, 5, 4): ('ident',),
-                                        (2, 0, 1, 5, 3, 4): ('ident',)})
+        # Apply symmetrizers. This set is not complete, but seems
+        # sufficient
+        t3x_sym = ncpd_symmetrize(
+            t3x,
+            {(2, 0, 1, 3, 4, 5): ('ident',),
+             (1, 2, 0, 3, 4, 5): ('ident',),
+             (0, 1, 2, 5, 3, 4): ('ident',),
+             (1, 0, 2, 4, 3, 5): ('ident',),
+             (2, 1, 0, 4, 3, 5): ('ident',),
+             (2, 0, 1, 4, 5, 3): ('ident',),
+             (0, 1, 2, 4, 5, 3): ('ident',),
+             (1, 2, 0, 4, 5, 3): ('ident',)}
+        )
 
         # Running residuals with symmetrized amplitudes is much slower,
         # but convergence is more stable. Derive unsymm equations?
@@ -569,12 +583,15 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
                               + r.t2.transpose([1, 0, 3, 2]))
                      * (cc_denom(h.f, 4, 'dir', 'full')))
 
-        r3 = 1 / 6 * (+ r.t3
+        r3 = 1 / 9 * (+ r.t3
+                      + r.t3.transpose([2, 0, 1, 3, 4, 5])
+                      + r.t3.transpose([1, 2, 0, 3, 4, 5])
                       + r.t3.transpose([0, 1, 2, 5, 3, 4])
+                      + r.t3.transpose([1, 0, 2, 4, 3, 5])
+                      + r.t3.transpose([2, 1, 0, 4, 3, 5])
+                      + r.t3.transpose([2, 0, 1, 4, 5, 3])
                       + r.t3.transpose([0, 1, 2, 4, 5, 3])
-                      + r.t3
-                      + r.t3.transpose([0, 2, 1, 3, 5, 4])
-                      + r.t3.transpose([2, 0, 1, 5, 3, 4]))
+                      + r.t3.transpose([1, 2, 0, 4, 5, 3]))
 
         r3_d = - r3 * cc_denom(h.f, 6, 'dir', 'full')
         t3 = [f for f in t3x]
@@ -682,7 +699,7 @@ def test_cc_t2f():  # pragma: nocover
     cc1 = RCCSDT_nCPD_LS_T(rhf, rankt={'t2': 20, 't3': 40})
     cc2 = RCCSDT_nCPD_T_LS_T(rhf, rankt={'t3': 40})
 
-    converged2, energy2, amps2 = step_solver(
+    converged2, energy2, amps2 = classic_solver(
         cc2, conv_tol_energy=1e-8,
         max_cycle=100)
 

@@ -89,12 +89,15 @@ class RCCSDT(CC):
         is consistent with the order in amplitudes
         """
 
-        g3 = (+ g.t3
-              + g.t3.transpose([0, 1, 2, 5, 3, 4])
-              + g.t3.transpose([0, 1, 2, 4, 5, 3])
-              + g.t3.transpose([0, 1, 2, 3, 4, 5])
-              + g.t3.transpose([0, 2, 1, 3, 5, 4])
-              + g.t3.transpose([2, 1, 0, 5, 4, 3])) / 6
+        g3 = 1 / 9 * (+ g.t3
+                      + g.t3.transpose([2, 0, 1, 3, 4, 5])
+                      + g.t3.transpose([1, 2, 0, 3, 4, 5])
+                      + g.t3.transpose([0, 1, 2, 5, 3, 4])
+                      + g.t3.transpose([1, 0, 2, 4, 3, 5])
+                      + g.t3.transpose([2, 1, 0, 4, 3, 5])
+                      + g.t3.transpose([2, 0, 1, 4, 5, 3])
+                      + g.t3.transpose([0, 1, 2, 4, 5, 3])
+                      + g.t3.transpose([1, 2, 0, 4, 5, 3]))
 
         g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
         return Tensors(
@@ -108,13 +111,15 @@ class RCCSDT(CC):
         Calculate approximate gradient of T
         """
         r = self.calc_residuals(h, a)
-        r3 = (+ r.t3
-              + r.t3.transpose([0, 1, 2, 5, 3, 4])
-              + r.t3.transpose([0, 1, 2, 4, 5, 3])
-              + r.t3
-              + r.t3.transpose([0, 2, 1, 3, 5, 4])
-              + r.t3.transpose([2, 0, 1, 5, 3, 4])) / 6 *\
-            cc_denom(h.f, 6, 'dir', 'full')
+        r3 = 1 / 9 * (+ r.t3
+                      + r.t3.transpose([2, 0, 1, 3, 4, 5])
+                      + r.t3.transpose([1, 2, 0, 3, 4, 5])
+                      + r.t3.transpose([0, 1, 2, 5, 3, 4])
+                      + r.t3.transpose([1, 0, 2, 4, 3, 5])
+                      + r.t3.transpose([2, 1, 0, 4, 3, 5])
+                      + r.t3.transpose([2, 0, 1, 4, 5, 3])
+                      + r.t3.transpose([0, 1, 2, 4, 5, 3])
+                      + r.t3.transpose([1, 2, 0, 4, 5, 3]))
 
         dt = Tensors(t1=r.t1, t2=r.t2, t3=r3)
 
@@ -146,7 +151,7 @@ def test_cc():   # pragma: nocover
         cc, conv_tol_energy=1e-8,
         max_cycle=100)
 
-    print('dE: {}'.format(energy - -1.304876e-01))
+    print('dE: {}'.format(energy - -1.298894e-01))
 
 
 def test_compare_to_aq():  # pragma: nocover
