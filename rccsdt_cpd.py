@@ -475,7 +475,17 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
         Updates right hand side of the CC equations, commonly referred as G
         """
 
-        return _rccsdt_ncpd_t2f_ls_t_calc_residuals(h, a)
+        t3 = ncpd_rebuild([a.t3.xlam, a.t3.x1, a.t3.x2, a.t3.x3,
+                           a.t3.x4, a.t3.x5, a.t3.x6])
+
+        return _rccsdt_mul_ri_calc_residuals(h,
+                                             Tensors(
+                                                 t1=a.t1,
+                                                 t2=a.t2,
+                                                 t3=t3
+                                             ))
+
+        # return _rccsdt_ncpd_t2f_ls_t_calc_residuals(h, a)
 
     def update_rhs(self, h, a, r):
         """
@@ -501,6 +511,8 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
         is consistent with the order in amplitudes
         """
 
+        t2_full = 1 / 2 * ((g.t2 + g.t2.transpose([1, 0, 3, 2])) *
+                           (- cc_denom(h.f, g.t2.ndim, 'dir', 'full')))
         g3 = 1 / 6 * (+ g.t3
                       + g.t3.transpose([0, 1, 2, 5, 3, 4])
                       + g.t3.transpose([0, 1, 2, 4, 5, 3])
@@ -508,8 +520,6 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
                       + g.t3.transpose([0, 2, 1, 3, 5, 4])
                       + g.t3.transpose([2, 1, 0, 5, 4, 3]))
 
-        t2_full = 1 / 2 * ((g.t2 + g.t2.transpose([1, 0, 3, 2])) *
-                           (- cc_denom(h.f, g.t2.ndim, 'dir', 'full')))
         t3_full = g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
 
         t3x = als_dense([a.t3.xlam, a.t3.x1, a.t3.x2, a.t3.x3,
