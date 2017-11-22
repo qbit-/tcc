@@ -115,7 +115,7 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
 
 def classic_solver(cc, amps=None, max_cycle=50,
-                   conv_tol_energy=1e-6, conv_tol_amps=1e-5, lam=1,
+                   conv_tol_energy=1e-6, conv_tol_res=1e-5, lam=1,
                    max_memory=None, verbose=logger.INFO):
     """
     Carry on a CC calculation
@@ -124,7 +124,7 @@ def classic_solver(cc, amps=None, max_cycle=50,
     :param amps:  amplitudes container
     :param max_cycle: number of cycles
     :param conv_tol_energy: convergence tolerance for energy
-    :param conv_tol_amps: convergence tolerance for amplitudes
+    :param conv_tol_res: convergence tolerance for amplitudes
     :param lam: damping factor
     :param max_memory: maximal amount of memory to use
     :param verbose: verbosity level
@@ -175,7 +175,7 @@ def classic_solver(cc, amps=None, max_cycle=50,
         dE = new_energy - energy
         if abs(dE) < conv_tol_energy:
             cc._converged = True
-        if abs(max_val) < conv_tol_amps:
+        if abs(max_val) < conv_tol_res:
             cc._converged = True
         if abs(dE) > div_tol_energy:
             cc._converged = False
@@ -393,7 +393,7 @@ def lagrangian_solver(cc, amps=None, method='L-BFGS-B',
 
 
 def step_solver(cc, amps=None, max_cycle=50,
-                conv_tol_energy=1e-6, conv_tol_amps=1e-5,
+                conv_tol_energy=1e-6, conv_tol_res=1e-5,
                 div_tol_energy=1e20,
                 use_momentum=True, beta=0.0,
                 max_memory=None, verbose=logger.INFO):
@@ -405,7 +405,7 @@ def step_solver(cc, amps=None, max_cycle=50,
     :param amps:  amplitudes container
     :param max_cycle: number of cycles
     :param conv_tol_energy: convergence tolerance for energy
-    :param conv_tol_amps: convergence tolerance for amplitudes
+    :param conv_tol_res: convergence tolerance for amplitudes
     :param div_tol_energy: energy divergence threshold
     :param use_momentum: if exponential averaging is enabled (default True)
     :param beta: strength of the exponential averaging
@@ -459,7 +459,7 @@ def step_solver(cc, amps=None, max_cycle=50,
         dE = new_energy - energy
         if abs(dE) < conv_tol_energy:
             cc._converged = True
-        if abs(max_val) < conv_tol_amps:
+        if abs(max_val) < conv_tol_res:
             cc._converged = True
         if abs(dE) > div_tol_energy:
             cc._converged = False
@@ -490,7 +490,7 @@ def step_solver(cc, amps=None, max_cycle=50,
 
 
 def gradient_solver(cc, amps=None, max_cycle=50,
-                    conv_tol_energy=1e-6, conv_tol_amps=1e-5,
+                    conv_tol_energy=1e-6, conv_tol_res=1e-5,
                     div_tol_energy=1e20, alpha=1,
                     use_optimizer='momentum', optimizer_kwargs={},
                     max_memory=None, verbose=logger.INFO):
@@ -503,7 +503,7 @@ def gradient_solver(cc, amps=None, max_cycle=50,
     :param amps:  amplitudes container
     :param max_cycle: number of cycles
     :param conv_tol_energy: convergence tolerance for energy
-    :param conv_tol_amps: convergence tolerance for amplitudes
+    :param conv_tol_res: convergence tolerance for amplitudes
     :param div_tol_energy: energy divergence threshold
     :param use_optimizer: optimizer to use
     :param optimizer_kwargs: dictionary passed to optimizer
@@ -556,7 +556,7 @@ def gradient_solver(cc, amps=None, max_cycle=50,
 
         if abs(dE) < conv_tol_energy:
             cc._converged = True
-        if abs(max_val) < conv_tol_amps:
+        if abs(max_val) < conv_tol_res:
             cc._converged = True
         if abs(dE) > div_tol_energy:
             cc._converged = False

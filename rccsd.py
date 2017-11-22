@@ -302,7 +302,7 @@ def test_cc_step():   # pragma: nocover
     cc = RCCSD(rhf)
 
     converged1, energy1, _ = classic_solver(
-        cc, conv_tol_energy=1e-10, conv_tol_amps=1e-10,
+        cc, conv_tol_energy=1e-10, conv_tol_res=1e-10,
         max_cycle=20)
     cc._converged = False
 
@@ -384,7 +384,7 @@ def compare_to_aq():  # pragma: nocover
     cc = RCCSD(rhf, mo_coeff=CA_perm)
 
     converged, energy, amps = classic_solver(
-        cc, conv_tol_energy=1e-14, conv_tol_amps=1e-10,
+        cc, conv_tol_energy=1e-14, conv_tol_res=1e-10,
         max_cycle=200)
 
     print('dt1: {}'.format(np.max(t1 - amps.t1)))

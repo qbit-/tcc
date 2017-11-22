@@ -94,11 +94,11 @@ class RCCSDT_MUL_RI(CC):
         """
 
         g3 = (+ g.t3
-              + g.t3.transpose([0, 1, 2, 5, 3, 4])
-              + g.t3.transpose([0, 1, 2, 4, 5, 3])
-              + g.t3.transpose([0, 1, 2, 3, 4, 5])
+              + g.t3.transpose([1, 2, 0, 4, 5, 3])
+              + g.t3.transpose([2, 0, 1, 5, 3, 4])
               + g.t3.transpose([0, 2, 1, 3, 5, 4])
-              + g.t3.transpose([2, 1, 0, 5, 4, 3])) / 6
+              + g.t3.transpose([2, 1, 0, 5, 4, 3])
+              + g.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
 
         g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
         return Tensors(
@@ -112,15 +112,16 @@ class RCCSDT_MUL_RI(CC):
         Solving for new T amlitudes using RHS and denominator
         """
         r = self.calc_residuals(h, a)
+        r2 = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
         r3 = (+ r.t3
-              + r.t3.transpose([0, 1, 2, 5, 3, 4])
-              + r.t3.transpose([0, 1, 2, 4, 5, 3])
-              + r.t3
+              + r.t3.transpose([1, 2, 0, 4, 5, 3])
+              + r.t3.transpose([2, 0, 1, 5, 3, 4])
               + r.t3.transpose([0, 2, 1, 3, 5, 4])
-              + r.t3.transpose([2, 0, 1, 5, 3, 4])) / 6 *\
+              + r.t3.transpose([2, 1, 0, 5, 4, 3])
+              + r.t3.transpose([1, 0, 2, 4, 3, 5])) / 6 *\
             cc_denom(h.f, 6, 'dir', 'full')
 
-        dt = Tensors(t1=r.t1, t2=r.t2, t3=r3)
+        dt = Tensors(t1=r.t1, t2=r2, t3=r3)
 
         def multiply_by_inverse(x):
             return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))

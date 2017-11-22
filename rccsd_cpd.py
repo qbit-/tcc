@@ -709,7 +709,7 @@ def test_update_diis_solver():
     cc2._converged = False
     converged2, energy2, amps2 = classic_solver(
         cc2, conv_tol_energy=1e-8,
-        conv_tol_amps=1e-8,
+        conv_tol_res=1e-8,
         lam=3,
         max_cycle=100)
 
@@ -735,14 +735,14 @@ def test_cpd_equals_ncpd():
     cc1._converged = False
     converged1, energy1, amps1 = classic_solver(
         cc1, conv_tol_energy=1e-8,
-        conv_tol_amps=1e-8,
+        conv_tol_res=1e-8,
         lam=3,
         max_cycle=140)
 
     cc2._converged = False
     converged2, energy2, amps2 = classic_solver(
         cc2, conv_tol_energy=1e-8,
-        conv_tol_amps=1e-8,
+        conv_tol_res=1e-8,
         lam=3,
         max_cycle=140)
 
