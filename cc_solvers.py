@@ -164,7 +164,7 @@ def classic_solver(cc, amps=None, max_cycle=50,
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
         log.info('istep = %d  E(%s) = %.6e'
-                 ' dE = %.6e  max(|T|) = %.6e (%s)',
+                 ' dE = %.6e  max(|dT|) = %.6e (%s)',
                  istep, cc.method_name,
                  new_energy, new_energy - energy,
                  max_val, max_key)
@@ -181,7 +181,7 @@ def classic_solver(cc, amps=None, max_cycle=50,
             cc._converged = False
             energy = np.nan
             log.note('Warning: divergence hit in %d steps'
-                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     ' dE = %.6e  max(|dT|) = %.6e (%s)',
                      istep, dE,
                      max_val, max_key)
             break
@@ -448,7 +448,7 @@ def step_solver(cc, amps=None, max_cycle=50,
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
         log.info('istep = %d  E(%s) = %.6e'
-                 ' dE = %.6e  max(|T|) = %.6e (%s)',
+                 ' dE = %.6e  max(|dT|) = %.6e (%s)',
                  istep, cc.method_name,
                  new_energy, new_energy - energy,
                  max_val, max_key)
@@ -465,7 +465,7 @@ def step_solver(cc, amps=None, max_cycle=50,
             cc._converged = False
             energy = np.nan
             log.note('Warning: divergence hit in %d steps'
-                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     ' dE = %.6e  max(|dT|) = %.6e (%s)',
                      istep, dE,
                      max_val, max_key)
             break
@@ -654,7 +654,7 @@ def update_diis_solver(cc, amps=None, max_cycle=50,
 
         cput_cycle = log.timer('CC iter', *cput_cycle)
         log.info('istep = %d  E(%s) = %.6e'
-                 ' dE = %.6e  max(|dt|) = %.6e (%s)',
+                 ' dE = %.6e  max(|dT|) = %.6e (%s)',
                  istep, cc.method_name,
                  energy, energy - old_energy,
                  max_val, max_key)
@@ -674,13 +674,13 @@ def update_diis_solver(cc, amps=None, max_cycle=50,
             cc._converged = False
             energy = np.nan
             log.note('Warning: divergence hit in %d steps'
-                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     ' dE = %.6e  max(|dT|) = %.6e (%s)',
                      istep, dE,
                      max_val, max_key)
             break
         if cc._converged:
             log.note('Converged in %d steps. E(%s) = %.6e'
-                     ' dE = %.6e  max(|r|) = %.6e (%s)',
+                     ' dE = %.6e  max(|dT|) = %.6e (%s)',
                      istep, cc.method_name,
                      energy, dE,
                      max_val, max_key)
