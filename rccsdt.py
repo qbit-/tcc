@@ -89,18 +89,31 @@ class RCCSDT(CC):
         is consistent with the order in amplitudes
         """
 
-        g3 = (+ g.t3
+        g3s = (+ g.t3
+               - g.t3.transpose([0, 1, 2, 3, 5, 4])
+               + g.t3.transpose([0, 1, 2, 4, 5, 3]))
+
+        t3 = ((+ g.t3
               + g.t3.transpose([1, 2, 0, 4, 5, 3])
               + g.t3.transpose([2, 0, 1, 5, 3, 4])
               + g.t3.transpose([0, 2, 1, 3, 5, 4])
               + g.t3.transpose([2, 1, 0, 5, 4, 3])
-              + g.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
+              + g.t3.transpose([1, 0, 2, 4, 3, 5])
+               + 2 * g3s) / 12
+              * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full')))
+
+        t3 = (+ t3
+              + t3.transpose([1, 2, 0, 4, 5, 3])
+              + t3.transpose([2, 0, 1, 5, 3, 4])
+              + t3.transpose([0, 2, 1, 3, 5, 4])
+              + t3.transpose([2, 1, 0, 5, 4, 3])
+              + t3.transpose([1, 0, 2, 4, 3, 5])) / 6
 
         g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
         return Tensors(
             t1=g.t1 * (- cc_denom(h.f, g.t1.ndim, 'dir', 'full')),
             t2=g2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full')),
-            t3=g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
+            t3=t3
         )
 
     def calculate_gradient(self, h, a):
@@ -143,7 +156,15 @@ def test_cc():   # pragma: nocover
 
     converged, energy, amps = classic_solver(
         cc, conv_tol_energy=1e-10, conv_tol_res=1e-10,
+        lam=3,
         max_cycle=100)
+
+    h = cc.create_ham()
+    res = cc.calc_residuals(h, amps)
+    import numpy as np
+    norms = res.map(np.linalg.norm)
+    print('r1: {}, r2: {}, r3: {}'.format(
+        norms.t1, norms.t2, norms.t3))
 
     print('dE: {}'.format(energy - -1.311811e-01))
 
@@ -224,4 +245,4 @@ def test_compare_to_aq():  # pragma: nocover
 
 if __name__ == '__main__':
     test_cc()
-    test_compare_to_aq()
+    #    test_compare_to_aq()

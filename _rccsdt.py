@@ -1012,3 +1012,1407 @@ def _rccsdt_calc_residuals(h, a):
         - einsum("lk,lijcba->abcijk", tau16, tau69)
     )
     return Tensors(t1=r1, t2=r2, t3=r3)
+
+
+def _rccsdt_unit_calculate_energy(h, a):
+    tau0 = (
+        - einsum("jiab->ijab", h.v.oovv)
+        + 2 * einsum("jiba->ijab", h.v.oovv)
+    )
+
+    tau1 = (
+        2 * einsum("ia->ia", h.f.ov)
+        + einsum("bj,jiba->ia", a.t1, tau0)
+    )
+
+    tau2 = (
+        2 * einsum("jiab->ijab", h.v.oovv)
+        - einsum("jiba->ijab", h.v.oovv)
+    )
+
+    energy = (
+        einsum("ai,ia->", a.t1, tau1)
+        + einsum("baij,ijab->", a.t2, tau2)
+    )
+    return energy
+
+
+def _rccsdt_unit_calc_residuals(h, a):
+    tau0 = (
+        2 * einsum("jiab->ijab", h.v.oovv)
+        - einsum("jiba->ijab", h.v.oovv)
+    )
+
+    tau1 = (
+        - einsum("backij->ijkabc", a.t3)
+        + einsum("cabkij->ijkabc", a.t3)
+    )
+
+    tau2 = (
+        - einsum("iabc->iabc", h.v.ovvv)
+        + 2 * einsum("iacb->iabc", h.v.ovvv)
+    )
+
+    tau3 = (
+        einsum("bi,kjba->ijka", a.t1, h.v.oovv)
+    )
+
+    tau4 = (
+        2 * einsum("jkia->ijka", h.v.ooov)
+        - einsum("kjia->ijka", h.v.ooov)
+        - einsum("ijka->ijka", tau3)
+        + 2 * einsum("ikja->ijka", tau3)
+    )
+
+    tau5 = (
+        - einsum("jiab->ijab", h.v.oovv)
+        + 2 * einsum("jiba->ijab", h.v.oovv)
+    )
+
+    tau6 = (
+        einsum("bj,jiba->ia", a.t1, tau5)
+    )
+
+    tau7 = (
+        einsum("ia->ia", h.f.ov)
+        + einsum("ia->ia", tau6)
+    )
+
+    tau8 = (
+        2 * einsum("abji->ijab", a.t2)
+        - einsum("baji->ijab", a.t2)
+    )
+
+    tau9 = (
+        2 * einsum("iabj->ijab", h.v.ovvo)
+        - einsum("iajb->ijab", h.v.ovov)
+    )
+
+    tau10 = (
+        einsum("ab->ab", h.f.vv)
+        + einsum("ci,iabc->ab", a.t1, tau2)
+    )
+
+    tau11 = (
+        2 * einsum("ijka->ijka", h.v.ooov)
+        - einsum("jika->ijka", h.v.ooov)
+    )
+
+    tau12 = (
+        einsum("ij->ij", h.f.oo)
+        + einsum("abkj,kiab->ij", a.t2, tau5)
+        + einsum("ak,ikja->ij", a.t1, tau11)
+        + einsum("aj,ia->ij", a.t1, tau7)
+    )
+
+    r1 = (
+        2 * einsum("ia->ai", h.f.ov.conj())
+        + 2 * einsum("jkbc,jikcab->ai", tau0, tau1)
+        + 2 * einsum("bcji,jacb->ai", a.t2, tau2)
+        - 2 * einsum("bajk,ikjb->ai", a.t2, tau4)
+        + 2 * einsum("jb,jiab->ai", tau7, tau8)
+        + 2 * einsum("bj,jiab->ai", a.t1, tau9)
+        + 2 * einsum("bi,ab->ai", a.t1, tau10)
+        - 2 * einsum("aj,ji->ai", a.t1, tau12)
+    )
+    tau0 = (
+        einsum("balk,lkji->ijab", a.t2, h.v.oooo)
+    )
+
+    tau1 = (
+        einsum("dcji,badc->ijab", a.t2, h.v.vvvv)
+    )
+
+    tau2 = (
+        einsum("di,badc->iabc", a.t1, h.v.vvvv)
+    )
+
+    tau3 = (
+        einsum("ci,jabc->ijab", a.t1, tau2)
+    )
+
+    tau4 = (
+        einsum("acki,kjcb->ijab", a.t2, h.v.oovv)
+    )
+
+    tau5 = (
+        einsum("acki,jkbc->ijab", a.t2, tau4)
+    )
+
+    tau6 = (
+        - einsum("jiab->ijab", h.v.oovv)
+        + 2 * einsum("jiba->ijab", h.v.oovv)
+    )
+
+    tau7 = (
+        einsum("bj,jiba->ia", a.t1, tau6)
+    )
+
+    tau8 = (
+        einsum("ia->ia", h.f.ov)
+        + einsum("ia->ia", tau7)
+    )
+
+    tau9 = (
+        einsum("kc,cabkij->ijab", tau8, a.t3)
+    )
+
+    tau10 = (
+        2 * einsum("jiab->ijab", h.v.oovv)
+        - einsum("jiba->ijab", h.v.oovv)
+    )
+
+    tau11 = (
+        einsum("cbkj,kiac->ijab", a.t2, tau10)
+    )
+
+    tau12 = (
+        einsum("cbkj,kica->ijab", a.t2, tau11)
+    )
+
+    tau13 = (
+        einsum("baji,lkba->ijkl", a.t2, h.v.oovv)
+    )
+
+    tau14 = (
+        einsum("bi,kjba->ijka", a.t1, h.v.oovv)
+    )
+
+    tau15 = (
+        einsum("ai,jkla->ijkl", a.t1, tau14)
+    )
+
+    tau16 = (
+        einsum("jilk->ijkl", tau13)
+        + einsum("ijkl->ijkl", tau15)
+    )
+
+    tau17 = (
+        einsum("abkl,ijkl->ijab", a.t2, tau16)
+    )
+
+    tau18 = (
+        einsum("jilk->ijkl", h.v.oooo)
+        + einsum("lkji->ijkl", tau13)
+        + einsum("lkji->ijkl", tau15)
+    )
+
+    tau19 = (
+        einsum("al,lijk->ijka", a.t1, tau18)
+    )
+
+    tau20 = (
+        einsum("bk,kjia->ijab", a.t1, tau19)
+    )
+
+    tau21 = (
+        einsum("baji->ijab", h.v.vvoo)
+        + einsum("jiba->ijab", tau0)
+        + einsum("jiba->ijab", tau1)
+        + einsum("ijab->ijab", tau3)
+        + einsum("ijab->ijab", tau5)
+        + 2 * einsum("ijab->ijab", tau9)
+        + 2 * einsum("ijab->ijab", tau12)
+        + einsum("jiba->ijab", tau17)
+        + einsum("ijba->ijab", tau20)
+    )
+
+    tau22 = (
+        einsum("acki,kbcj->ijab", a.t2, h.v.ovvo)
+    )
+
+    tau23 = (
+        einsum("kbcd,acdkij->ijab", h.v.ovvv, a.t3)
+    )
+
+    tau24 = (
+        einsum("ci,jacb->ijab", a.t1, h.v.ovvv)
+    )
+
+    tau25 = (
+        einsum("ackj,ikbc->ijab", a.t2, tau24)
+    )
+
+    tau26 = (
+        einsum("ilkc,bcaljk->ijab", tau14, a.t3)
+    )
+
+    tau27 = (
+        2 * einsum("iabc->iabc", h.v.ovvv)
+        - einsum("iacb->iabc", h.v.ovvv)
+    )
+
+    tau28 = (
+        einsum("kacd,cbdkij->ijab", tau27, a.t3)
+    )
+
+    tau29 = (
+        2 * einsum("ijka->ijka", h.v.ooov)
+        - einsum("jika->ijka", h.v.ooov)
+    )
+
+    tau30 = (
+        einsum("klic,cabljk->ijab", tau29, a.t3)
+    )
+
+    tau31 = (
+        einsum("bckj,kiac->ijab", a.t2, tau10)
+    )
+
+    tau32 = (
+        einsum("jaib->ijab", h.v.ovov)
+        - 2 * einsum("jabi->ijab", h.v.ovvo)
+        + einsum("jiba->ijab", tau31)
+    )
+
+    tau33 = (
+        einsum("cbkj,ikac->ijab", a.t2, tau32)
+    )
+
+    tau34 = (
+        einsum("kc,abckij->ijab", tau8, a.t3)
+    )
+
+    tau35 = (
+        einsum("cbij,ijca->ab", a.t2, tau6)
+    )
+
+    tau36 = (
+        - einsum("iabc->iabc", h.v.ovvv)
+        + 2 * einsum("iacb->iabc", h.v.ovvv)
+    )
+
+    tau37 = (
+        einsum("ci,iabc->ab", a.t1, tau36)
+    )
+
+    tau38 = (
+        einsum("ba->ab", tau35)
+        - einsum("ab->ab", tau37)
+    )
+
+    tau39 = (
+        einsum("ac,cbij->ijab", tau38, a.t2)
+    )
+
+    tau40 = (
+        einsum("abli,ljkb->ijka", a.t2, h.v.ooov)
+    )
+
+    tau41 = (
+        einsum("cbji,kabc->ijka", a.t2, h.v.ovvv)
+    )
+
+    tau42 = (
+        einsum("lkcb,abclij->ijka", h.v.oovv, a.t3)
+    )
+
+    tau43 = (
+        einsum("ablj,ilkb->ijka", a.t2, tau14)
+    )
+
+    tau44 = (
+        - einsum("ijka->ijka", tau14)
+        + 2 * einsum("ikja->ijka", tau14)
+    )
+
+    tau45 = (
+        einsum("balk,ijlb->ijka", a.t2, tau44)
+    )
+
+    tau46 = (
+        einsum("ci,jabc->ijab", a.t1, h.v.ovvv)
+    )
+
+    tau47 = (
+        einsum("iabj->ijab", h.v.ovvo)
+        + einsum("jiab->ijab", tau46)
+    )
+
+    tau48 = (
+        einsum("bk,ijab->ijka", a.t1, tau47)
+    )
+
+    tau49 = (
+        einsum("jaik->ijka", h.v.ovoo)
+        - einsum("ijka->ijka", tau40)
+        + einsum("ikja->ijka", tau41)
+        - einsum("ikja->ijka", tau42)
+        - einsum("ikja->ijka", tau43)
+        + einsum("ijka->ijka", tau45)
+        + einsum("jkia->ijka", tau48)
+    )
+
+    tau50 = (
+        einsum("bk,ikja->ijab", a.t1, tau49)
+    )
+
+    tau51 = (
+        einsum("abkj,kiab->ij", a.t2, tau6)
+    )
+
+    tau52 = (
+        einsum("ak,ikja->ij", a.t1, tau29)
+    )
+
+    tau53 = (
+        einsum("ij->ij", tau51)
+        + einsum("ij->ij", tau52)
+    )
+
+    tau54 = (
+        einsum("ki,abkj->ijab", tau53, a.t2)
+    )
+
+    tau55 = (
+        einsum("ijab->ijab", tau22)
+        + einsum("ijab->ijab", tau23)
+        + einsum("ijab->ijab", tau25)
+        - einsum("ijab->ijab", tau26)
+        - einsum("ijba->ijab", tau28)
+        + einsum("jiab->ijab", tau30)
+        + einsum("jiba->ijab", tau33)
+        + einsum("ijba->ijab", tau34)
+        + einsum("jiba->ijab", tau39)
+        + einsum("ijba->ijab", tau50)
+        + einsum("jiba->ijab", tau54)
+    )
+
+    tau56 = (
+        einsum("ac,cbji->ijab", h.f.vv, a.t2)
+    )
+
+    tau57 = (
+        einsum("ci,abjc->ijab", a.t1, h.v.vvov)
+    )
+
+    tau58 = (
+        einsum("acki,kbjc->ijab", a.t2, h.v.ovov)
+    )
+
+    tau59 = (
+        einsum("kljc,bcalik->ijab", h.v.ooov, a.t3)
+    )
+
+    tau60 = (
+        einsum("ai,jkla->ijkl", a.t1, h.v.ooov)
+    )
+
+    tau61 = (
+        einsum("balk,iklj->ijab", a.t2, tau60)
+    )
+
+    tau62 = (
+        einsum("cakj,ikbc->ijab", a.t2, tau24)
+    )
+
+    tau63 = (
+        einsum("iklc,cabljk->ijab", tau44, a.t3)
+    )
+
+    tau64 = (
+        2 * einsum("abji->ijab", a.t2)
+        - einsum("baji->ijab", a.t2)
+    )
+
+    tau65 = (
+        einsum("jkbc,kiac->ijab", tau46, tau64)
+    )
+
+    tau66 = (
+        einsum("bi,jakb->ijka", a.t1, h.v.ovov)
+    )
+
+    tau67 = (
+        einsum("abli,jlkb->ijka", a.t2, h.v.ooov)
+    )
+
+    tau68 = (
+        einsum("al,ijlk->ijka", a.t1, tau60)
+    )
+
+    tau69 = (
+        einsum("ablj,iklb->ijka", a.t2, tau14)
+    )
+
+    tau70 = (
+        einsum("libc,bacljk->ijka", tau6, a.t3)
+    )
+
+    tau71 = (
+        einsum("balk,iljb->ijka", a.t2, tau29)
+    )
+
+    tau72 = (
+        einsum("ib,bajk->ijka", tau8, a.t2)
+    )
+
+    tau73 = (
+        - einsum("jika->ijka", tau66)
+        + einsum("jika->ijka", tau67)
+        + einsum("jika->ijka", tau68)
+        + einsum("jkia->ijka", tau69)
+        - einsum("ijka->ijka", tau70)
+        - einsum("ikja->ijka", tau71)
+        - einsum("ikja->ijka", tau72)
+    )
+
+    tau74 = (
+        einsum("bk,kija->ijab", a.t1, tau73)
+    )
+
+    tau75 = (
+        einsum("aj,ia->ij", a.t1, tau8)
+    )
+
+    tau76 = (
+        einsum("ji->ij", h.f.oo)
+        + einsum("ji->ij", tau75)
+    )
+
+    tau77 = (
+        einsum("ik,abkj->ijab", tau76, a.t2)
+    )
+
+    tau78 = (
+        einsum("ijab->ijab", tau56)
+        + einsum("ijab->ijab", tau57)
+        - einsum("ijab->ijab", tau58)
+        + einsum("ijab->ijab", tau59)
+        + einsum("ijab->ijab", tau61)
+        - einsum("ijab->ijab", tau62)
+        - einsum("ijab->ijab", tau63)
+        + einsum("jiab->ijab", tau65)
+        + einsum("ijba->ijab", tau74)
+        - einsum("ijba->ijab", tau77)
+    )
+
+    tau79 = (
+        einsum("acki,kjbc->ijab", a.t2, h.v.oovv)
+    )
+
+    tau80 = (
+        einsum("acki,jkbc->ijab", a.t2, tau79)
+    )
+
+    r2 = (
+        - 2 * einsum("ijba->abij", tau21)
+        + 4 * einsum("ijab->abij", tau21)
+        - 4 * einsum("ijab->abij", tau55)
+        + 2 * einsum("ijba->abij", tau55)
+        + 2 * einsum("jiab->abij", tau55)
+        - 4 * einsum("jiba->abij", tau55)
+        - 2 * einsum("ijab->abij", tau78)
+        + 4 * einsum("ijba->abij", tau78)
+        + 4 * einsum("jiab->abij", tau78)
+        - 2 * einsum("jiba->abij", tau78)
+        + 4 * einsum("jiab->abij", tau80)
+        - 2 * einsum("jiba->abij", tau80)
+    )
+    tau0 = (
+        2 * einsum("iabj->ijab", h.v.ovvo)
+        - einsum("iajb->ijab", h.v.ovov)
+    )
+
+    tau1 = (
+        einsum("liad,dbcljk->ijkabc", tau0, a.t3)
+    )
+
+    tau2 = (
+        - einsum("iabc->iabc", h.v.ovvv)
+        + 2 * einsum("iacb->iabc", h.v.ovvv)
+    )
+
+    tau3 = (
+        einsum("ci,iabc->ab", a.t1, tau2)
+    )
+
+    tau4 = (
+        einsum("ad,dbcijk->ijkabc", tau3, a.t3)
+    )
+
+    tau5 = (
+        2 * einsum("ijka->ijka", h.v.ooov)
+        - einsum("jika->ijka", h.v.ooov)
+    )
+
+    tau6 = (
+        einsum("ak,ikja->ij", a.t1, tau5)
+    )
+
+    tau7 = (
+        einsum("li,abcljk->ijkabc", tau6, a.t3)
+    )
+
+    tau8 = (
+        einsum("kijcab->ijkabc", tau1)
+        + einsum("kijcab->ijkabc", tau4)
+        - einsum("kijcab->ijkabc", tau7)
+    )
+
+    tau9 = (
+        einsum("lckd,badlij->ijkabc", h.v.ovov, a.t3)
+    )
+
+    tau10 = (
+        einsum("bi,kjba->ijka", a.t1, h.v.oovv)
+    )
+
+    tau11 = (
+        einsum("bakj,ijkc->iabc", a.t2, tau10)
+    )
+
+    tau12 = (
+        einsum("dckj,ibad->ijkabc", a.t2, tau11)
+    )
+
+    tau13 = (
+        einsum("bakj,imlb->ijklma", a.t2, tau10)
+    )
+
+    tau14 = (
+        einsum("am,ijklmb->ijklab", a.t1, tau13)
+    )
+
+    tau15 = (
+        einsum("al,ijklbc->ijkabc", a.t1, tau14)
+    )
+
+    tau16 = (
+        einsum("adji,jbdc->iabc", a.t2, h.v.ovvv)
+    )
+
+    tau17 = (
+        2 * einsum("jiab->ijab", h.v.oovv)
+        - einsum("jiba->ijab", h.v.oovv)
+    )
+
+    tau18 = (
+        einsum("jkad,dbcjik->iabc", tau17, a.t3)
+    )
+
+    tau19 = (
+        2 * einsum("iabc->iabc", h.v.ovvv)
+        - einsum("iacb->iabc", h.v.ovvv)
+    )
+
+    tau20 = (
+        einsum("daji,jbdc->iabc", a.t2, tau19)
+    )
+
+    tau21 = (
+        - einsum("abic->iabc", h.v.vvov)
+        + einsum("iabc->iabc", tau16)
+        + einsum("icab->iabc", tau18)
+        - einsum("iabc->iabc", tau20)
+    )
+
+    tau22 = (
+        einsum("daij,kbcd->ijkabc", a.t2, tau21)
+    )
+
+    tau23 = (
+        - einsum("jiab->ijab", h.v.oovv)
+        + 2 * einsum("jiba->ijab", h.v.oovv)
+    )
+
+    tau24 = (
+        einsum("bj,jiba->ia", a.t1, tau23)
+    )
+
+    tau25 = (
+        einsum("ia->ia", h.f.ov)
+        + einsum("ia->ia", tau24)
+    )
+
+    tau26 = (
+        einsum("kb,abij->ijka", tau25, a.t2)
+    )
+
+    tau27 = (
+        einsum("baji,lkba->ijkl", a.t2, h.v.oovv)
+    )
+
+    tau28 = (
+        einsum("ai,jkla->ijkl", a.t1, tau10)
+    )
+
+    tau29 = (
+        einsum("jilk->ijkl", tau27)
+        + einsum("ijkl->ijkl", tau28)
+    )
+
+    tau30 = (
+        einsum("al,ijlk->ijka", a.t1, tau29)
+    )
+
+    tau31 = (
+        - einsum("jika->ijka", tau26)
+        + einsum("jika->ijka", tau30)
+    )
+
+    tau32 = (
+        einsum("abli,jklc->ijkabc", a.t2, tau31)
+    )
+
+    tau33 = (
+        einsum("abli,jlkb->ijka", a.t2, h.v.ooov)
+    )
+
+    tau34 = (
+        einsum("libc,cabljk->ijka", tau17, a.t3)
+    )
+
+    tau35 = (
+        einsum("bali,jlkb->ijka", a.t2, tau5)
+    )
+
+    tau36 = (
+        einsum("ikja->ijka", tau33)
+        - einsum("kija->ijka", tau34)
+        - einsum("ikja->ijka", tau35)
+    )
+
+    tau37 = (
+        einsum("abli,jklc->ijkabc", a.t2, tau36)
+    )
+
+    tau38 = (
+        - einsum("ijkabc->ijkabc", tau9)
+        + einsum("ijkabc->ijkabc", tau12)
+        + einsum("ijkabc->ijkabc", tau15)
+        - einsum("jikabc->ijkabc", tau22)
+        + einsum("kjicba->ijkabc", tau32)
+        + einsum("ijkbac->ijkabc", tau37)
+    )
+
+    tau39 = (
+        einsum("lcdk,badlij->ijkabc", h.v.ovvo, a.t3)
+    )
+
+    tau40 = (
+        einsum("acki,kjcb->ijab", a.t2, h.v.oovv)
+    )
+
+    tau41 = (
+        einsum("caki,kjcb->ijab", a.t2, tau23)
+    )
+
+    tau42 = (
+        einsum("ijab->ijab", tau40)
+        - einsum("ijab->ijab", tau41)
+    )
+
+    tau43 = (
+        einsum("ilad,bcdljk->ijkabc", tau42, a.t3)
+    )
+
+    tau44 = (
+        einsum("adji,jbcd->iabc", a.t2, h.v.ovvv)
+    )
+
+    tau45 = (
+        einsum("kjdc,bdakij->iabc", h.v.oovv, a.t3)
+    )
+
+    tau46 = (
+        - einsum("iabc->iabc", tau44)
+        + einsum("iabc->iabc", tau45)
+    )
+
+    tau47 = (
+        einsum("daij,kbcd->ijkabc", a.t2, tau46)
+    )
+
+    tau48 = (
+        einsum("abli,ljkb->ijka", a.t2, h.v.ooov)
+    )
+
+    tau49 = (
+        einsum("lkcb,abclij->ijka", h.v.oovv, a.t3)
+    )
+
+    tau50 = (
+        - einsum("kaij->ijka", h.v.ovoo)
+        + einsum("ikja->ijka", tau48)
+        + einsum("ijka->ijka", tau49)
+    )
+
+    tau51 = (
+        einsum("abli,jklc->ijkabc", a.t2, tau50)
+    )
+
+    tau52 = (
+        einsum("ai,jkla->ijkl", a.t1, h.v.ooov)
+    )
+
+    tau53 = (
+        einsum("bamj,imkl->ijklab", a.t2, tau52)
+    )
+
+    tau54 = (
+        einsum("ci,jacb->ijab", a.t1, h.v.ovvv)
+    )
+
+    tau55 = (
+        einsum("cakj,ilbc->ijklab", a.t2, tau54)
+    )
+
+    tau56 = (
+        einsum("imlc,bacmjk->ijklab", tau10, a.t3)
+    )
+
+    tau57 = (
+        einsum("ijklab->ijklab", tau53)
+        - einsum("ijlkab->ijklab", tau55)
+        + einsum("ijlkab->ijklab", tau56)
+    )
+
+    tau58 = (
+        einsum("cl,ijlkab->ijkabc", a.t1, tau57)
+    )
+
+    tau59 = (
+        - einsum("ijkabc->ijkabc", tau39)
+        + einsum("ijkacb->ijkabc", tau43)
+        + einsum("jikabc->ijkabc", tau47)
+        + einsum("ijkbac->ijkabc", tau51)
+        + einsum("ijkbca->ijkabc", tau58)
+    )
+
+    tau60 = (
+        einsum("ijlm,abcmkl->ijkabc", tau29, a.t3)
+    )
+
+    tau61 = (
+        einsum("caij,ijbc->ab", a.t2, tau17)
+    )
+
+    tau62 = (
+        einsum("ab->ab", h.f.vv)
+        - einsum("ab->ab", tau61)
+    )
+
+    tau63 = (
+        einsum("ad,dbcijk->ijkabc", tau62, a.t3)
+    )
+
+    tau64 = (
+        einsum("imjc,cabmkl->ijklab", tau5, a.t3)
+    )
+
+    tau65 = (
+        einsum("ic,cabjkl->ijklab", tau25, a.t3)
+    )
+
+    tau66 = (
+        einsum("iljkab->ijklab", tau64)
+        + einsum("iljkab->ijklab", tau65)
+    )
+
+    tau67 = (
+        einsum("cl,lijkab->ijkabc", a.t1, tau66)
+    )
+
+    tau68 = (
+        einsum("jikbac->ijkabc", tau60)
+        + einsum("kijabc->ijkabc", tau63)
+        - einsum("ijkbca->ijkabc", tau67)
+    )
+
+    tau69 = (
+        einsum("cj,iabc->ijab", a.t1, tau19)
+    )
+
+    tau70 = (
+        einsum("liad,dbcljk->ijkabc", tau69, a.t3)
+    )
+
+    tau71 = (
+        einsum("abki,kjab->ij", a.t2, tau23)
+    )
+
+    tau72 = (
+        einsum("aj,ia->ij", a.t1, tau25)
+    )
+
+    tau73 = (
+        einsum("ij->ij", h.f.oo)
+        + einsum("ji->ij", tau71)
+        + einsum("ij->ij", tau72)
+    )
+
+    tau74 = (
+        einsum("li,abcljk->ijkabc", tau73, a.t3)
+    )
+
+    tau75 = (
+        einsum("baji->ijab", a.t2)
+        + einsum("ai,bj->ijab", a.t1, a.t1)
+    )
+
+    tau76 = (
+        einsum("mlcb,cabkij->ijklma", h.v.oovv, a.t3)
+    )
+
+    tau77 = (
+        einsum("lmbc,ijklma->ijkabc", tau75, tau76)
+    )
+
+    tau78 = (
+        - einsum("ijkcab->ijkabc", tau70)
+        + einsum("ijkcab->ijkabc", tau74)
+        - einsum("ikjcba->ijkabc", tau77)
+    )
+
+    tau79 = (
+        einsum("di,badc->iabc", a.t1, h.v.vvvv)
+    )
+
+    tau80 = (
+        einsum("dakj,icbd->ijkabc", a.t2, tau79)
+    )
+
+    tau81 = (
+        einsum("ilcd,badljk->ijkabc", tau54, a.t3)
+    )
+
+    tau82 = (
+        einsum("bami,mjlk->ijklab", a.t2, h.v.oooo)
+    )
+
+    tau83 = (
+        einsum("mklc,bacmij->ijklab", h.v.ooov, a.t3)
+    )
+
+    tau84 = (
+        einsum("lbcd,dackij->ijklab", h.v.ovvv, a.t3)
+    )
+
+    tau85 = (
+        einsum("caki,kjbc->ijab", a.t2, h.v.oovv)
+    )
+
+    tau86 = (
+        - einsum("abji->ijab", a.t2)
+        + 2 * einsum("baji->ijab", a.t2)
+    )
+
+    tau87 = (
+        einsum("kjcb,kica->ijab", tau86, h.v.oovv)
+    )
+
+    tau88 = (
+        einsum("jabi->ijab", h.v.ovvo)
+        - einsum("ijab->ijab", tau85)
+        + einsum("jiba->ijab", tau87)
+    )
+
+    tau89 = (
+        einsum("caij,klbc->ijklab", a.t2, tau88)
+    )
+
+    tau90 = (
+        einsum("ikjlab->ijklab", tau82)
+        + einsum("ijklab->ijklab", tau83)
+        - einsum("ijlkab->ijklab", tau84)
+        - einsum("jilkab->ijklab", tau89)
+    )
+
+    tau91 = (
+        einsum("cl,ijlkab->ijkabc", a.t1, tau90)
+    )
+
+    tau92 = (
+        einsum("bi,jabk->ijka", a.t1, h.v.ovvo)
+    )
+
+    tau93 = (
+        einsum("ablj,ilkb->ijka", a.t2, tau10)
+    )
+
+    tau94 = (
+        2 * einsum("ijka->ijka", tau10)
+        - einsum("ikja->ijka", tau10)
+    )
+
+    tau95 = (
+        einsum("bali,jlkb->ijka", a.t2, tau94)
+    )
+
+    tau96 = (
+        einsum("ikja->ijka", tau92)
+        - einsum("ijka->ijka", tau93)
+        + einsum("jika->ijka", tau95)
+    )
+
+    tau97 = (
+        einsum("abli,jklc->ijkabc", a.t2, tau96)
+    )
+
+    tau98 = (
+        einsum("ijkabc->ijkabc", tau80)
+        - einsum("ijkabc->ijkabc", tau81)
+        + einsum("ijkbca->ijkabc", tau91)
+        - einsum("jikbac->ijkabc", tau97)
+    )
+
+    tau99 = (
+        einsum("kmlc,bacmij->ijklab", h.v.ooov, a.t3)
+    )
+
+    tau100 = (
+        einsum("acki,kjbc->ijab", a.t2, h.v.oovv)
+    )
+
+    tau101 = (
+        - einsum("jaib->ijab", h.v.ovov)
+        + einsum("ijab->ijab", tau100)
+    )
+
+    tau102 = (
+        einsum("caij,klbc->ijklab", a.t2, tau101)
+    )
+
+    tau103 = (
+        einsum("ijklab->ijklab", tau99)
+        + einsum("jilkab->ijklab", tau102)
+    )
+
+    tau104 = (
+        einsum("cl,ijlkab->ijkabc", a.t1, tau103)
+    )
+
+    tau105 = (
+        einsum("cbji,kabc->ijka", a.t2, h.v.ovvv)
+    )
+
+    tau106 = (
+        einsum("ci,jabc->ijab", a.t1, h.v.ovvv)
+    )
+
+    tau107 = (
+        einsum("bi,jkab->ijka", a.t1, tau106)
+    )
+
+    tau108 = (
+        einsum("ijka->ijka", tau105)
+        + einsum("ijka->ijka", tau107)
+    )
+
+    tau109 = (
+        einsum("abli,jklc->ijkabc", a.t2, tau108)
+    )
+
+    tau110 = (
+        - einsum("ijkbca->ijkabc", tau104)
+        + einsum("kijbac->ijkabc", tau109)
+    )
+
+    tau111 = (
+        einsum("ilmk,cabmjl->ijkabc", tau52, a.t3)
+    )
+
+    tau112 = (
+        einsum("ilcd,badljk->ijkabc", tau106, a.t3)
+    )
+
+    tau113 = (
+        einsum("bi,jakb->ijka", a.t1, h.v.ovov)
+    )
+
+    tau114 = (
+        einsum("ablj,iklb->ijka", a.t2, tau10)
+    )
+
+    tau115 = (
+        - einsum("ikja->ijka", tau113)
+        + einsum("ijka->ijka", tau114)
+    )
+
+    tau116 = (
+        einsum("abli,jklc->ijkabc", a.t2, tau115)
+    )
+
+    tau117 = (
+        - einsum("ijkabc->ijkabc", tau111)
+        + einsum("ijkabc->ijkabc", tau112)
+        - einsum("jikbac->ijkabc", tau116)
+    )
+
+    tau118 = (
+        einsum("mlkj,cabmil->ijkabc", h.v.oooo, a.t3)
+    )
+
+    tau119 = (
+        einsum("cbed,eadkij->ijkabc", h.v.vvvv, a.t3)
+    )
+
+    tau120 = (
+        einsum("kica,kjcb->ijab", tau23, tau86)
+    )
+
+    tau121 = (
+        - einsum("lida,dbcljk->ijkabc", tau120, a.t3)
+    )
+
+    tau122 = (
+        - einsum("ijka->ijka", tau10)
+        + 2 * einsum("ikja->ijka", tau10)
+    )
+
+    tau123 = (
+        einsum("ijmc,cabmkl->ijklab", tau122, a.t3)
+    )
+
+    tau124 = (
+        einsum("cl,iljkab->ijkabc", a.t1, tau123)
+    )
+
+    tau125 = (
+        einsum("ikjacb->ijkabc", tau118)
+        + einsum("ikjacb->ijkabc", tau119)
+        - einsum("ijkabc->ijkabc", tau121)
+        - einsum("ikjcba->ijkabc", tau124)
+    )
+
+    tau126 = (
+        einsum("bakj,jkic->iabc", a.t2, h.v.ooov)
+    )
+
+    tau127 = (
+        einsum("dcji,kabd->ijkabc", a.t2, tau126)
+    )
+
+    tau128 = (
+        einsum("ilad,cbdljk->ijkabc", tau100, a.t3)
+    )
+
+    tau129 = (
+        einsum("baji,klmb->ijklma", a.t2, h.v.ooov)
+    )
+
+    tau130 = (
+        einsum("am,ijkmlb->ijklab", a.t1, tau129)
+    )
+
+    tau131 = (
+        einsum("bamj,ikml->ijklab", a.t2, tau52)
+    )
+
+    tau132 = (
+        einsum("cakj,ilbc->ijklab", a.t2, tau106)
+    )
+
+    tau133 = (
+        einsum("ilmc,bacmjk->ijklab", tau10, a.t3)
+    )
+
+    tau134 = (
+        einsum("ijklab->ijklab", tau130)
+        + einsum("ijklab->ijklab", tau131)
+        - einsum("ijlkab->ijklab", tau132)
+        + einsum("ijlkab->ijklab", tau133)
+    )
+
+    tau135 = (
+        einsum("cl,ijlkab->ijkabc", a.t1, tau134)
+    )
+
+    tau136 = (
+        einsum("ijkabc->ijkabc", tau127)
+        + einsum("ijkabc->ijkabc", tau128)
+        + einsum("ijkbca->ijkabc", tau135)
+    )
+
+    r3 = (
+        - 4 * einsum("jikabc->abcijk", tau8)
+        + 2 * einsum("jikacb->abcijk", tau8)
+        + 8 * einsum("jikbac->abcijk", tau8)
+        - 4 * einsum("jikbca->abcijk", tau8)
+        - 4 * einsum("jikcab->abcijk", tau8)
+        + 2 * einsum("jikcba->abcijk", tau8)
+        + 2 * einsum("kijabc->abcijk", tau8)
+        - 4 * einsum("kijacb->abcijk", tau8)
+        - 4 * einsum("kijbac->abcijk", tau8)
+        + 2 * einsum("kijbca->abcijk", tau8)
+        + 8 * einsum("kijcab->abcijk", tau8)
+        - 4 * einsum("kijcba->abcijk", tau8)
+        - 2 * einsum("kjiabc->abcijk", tau8)
+        + 2 * einsum("kjiacb->abcijk", tau8)
+        + 2 * einsum("kjibac->abcijk", tau8)
+        - 4 * einsum("kjibca->abcijk", tau8)
+        - 4 * einsum("kjicab->abcijk", tau8)
+        + 8 * einsum("kjicba->abcijk", tau8)
+        - 4 * einsum("ijkabc->abcijk", tau38)
+        + 8 * einsum("ijkacb->abcijk", tau38)
+        + 2 * einsum("ijkbac->abcijk", tau38)
+        - 4 * einsum("ijkbca->abcijk", tau38)
+        - 4 * einsum("ijkcab->abcijk", tau38)
+        + 2 * einsum("ijkcba->abcijk", tau38)
+        + 8 * einsum("ikjabc->abcijk", tau38)
+        - 4 * einsum("ikjacb->abcijk", tau38)
+        - 4 * einsum("ikjbac->abcijk", tau38)
+        + 2 * einsum("ikjbca->abcijk", tau38)
+        + 2 * einsum("ikjcab->abcijk", tau38)
+        - 4 * einsum("ikjcba->abcijk", tau38)
+        + 2 * einsum("jikabc->abcijk", tau38)
+        - 4 * einsum("jikacb->abcijk", tau38)
+        - 2 * einsum("jikbac->abcijk", tau38)
+        + 8 * einsum("jikbca->abcijk", tau38)
+        + 2 * einsum("jikcab->abcijk", tau38)
+        - 4 * einsum("jikcba->abcijk", tau38)
+        - 4 * einsum("jkiabc->abcijk", tau38)
+        + 2 * einsum("jkiacb->abcijk", tau38)
+        + 8 * einsum("jkibac->abcijk", tau38)
+        - 4 * einsum("jkibca->abcijk", tau38)
+        - 4 * einsum("jkicab->abcijk", tau38)
+        + 2 * einsum("jkicba->abcijk", tau38)
+        - 2 * einsum("kijabc->abcijk", tau38)
+        + 2 * einsum("kijacb->abcijk", tau38)
+        + 2 * einsum("kijbac->abcijk", tau38)
+        - 4 * einsum("kijbca->abcijk", tau38)
+        - 4 * einsum("kijcab->abcijk", tau38)
+        + 8 * einsum("kijcba->abcijk", tau38)
+        + 2 * einsum("kjiabc->abcijk", tau38)
+        - 4 * einsum("kjiacb->abcijk", tau38)
+        - 4 * einsum("kjibac->abcijk", tau38)
+        + 2 * einsum("kjibca->abcijk", tau38)
+        + 8 * einsum("kjicab->abcijk", tau38)
+        - 4 * einsum("kjicba->abcijk", tau38)
+        + 8 * einsum("ijkabc->abcijk", tau59)
+        - 4 * einsum("ijkacb->abcijk", tau59)
+        - 4 * einsum("ijkbac->abcijk", tau59)
+        + 2 * einsum("ijkbca->abcijk", tau59)
+        + 2 * einsum("ijkcab->abcijk", tau59)
+        - 4 * einsum("ijkcba->abcijk", tau59)
+        - 4 * einsum("ikjabc->abcijk", tau59)
+        + 8 * einsum("ikjacb->abcijk", tau59)
+        + 2 * einsum("ikjbac->abcijk", tau59)
+        - 4 * einsum("ikjbca->abcijk", tau59)
+        - 4 * einsum("ikjcab->abcijk", tau59)
+        + 2 * einsum("ikjcba->abcijk", tau59)
+        - 4 * einsum("jikabc->abcijk", tau59)
+        + 2 * einsum("jikacb->abcijk", tau59)
+        + 8 * einsum("jikbac->abcijk", tau59)
+        - 4 * einsum("jikbca->abcijk", tau59)
+        - 4 * einsum("jikcab->abcijk", tau59)
+        + 2 * einsum("jikcba->abcijk", tau59)
+        + 2 * einsum("jkiabc->abcijk", tau59)
+        - 4 * einsum("jkiacb->abcijk", tau59)
+        - 2 * einsum("jkibac->abcijk", tau59)
+        + 8 * einsum("jkibca->abcijk", tau59)
+        + 2 * einsum("jkicab->abcijk", tau59)
+        - 4 * einsum("jkicba->abcijk", tau59)
+        + 2 * einsum("kijabc->abcijk", tau59)
+        - 4 * einsum("kijacb->abcijk", tau59)
+        - 4 * einsum("kijbac->abcijk", tau59)
+        + 2 * einsum("kijbca->abcijk", tau59)
+        + 8 * einsum("kijcab->abcijk", tau59)
+        - 4 * einsum("kijcba->abcijk", tau59)
+        - 2 * einsum("kjiabc->abcijk", tau59)
+        + 2 * einsum("kjiacb->abcijk", tau59)
+        + 2 * einsum("kjibac->abcijk", tau59)
+        - 4 * einsum("kjibca->abcijk", tau59)
+        - 4 * einsum("kjicab->abcijk", tau59)
+        + 8 * einsum("kjicba->abcijk", tau59)
+        - 3 * einsum("jikabc->abcijk", tau68)
+        + 2 * einsum("jikacb->abcijk", tau68)
+        + 2 * einsum("jikbac->abcijk", tau68)
+        - 4 * einsum("jikbca->abcijk", tau68)
+        - 4 * einsum("jikcab->abcijk", tau68)
+        + 8 * einsum("jikcba->abcijk", tau68)
+        + 2 * einsum("kijabc->abcijk", tau68)
+        - 4 * einsum("kijacb->abcijk", tau68)
+        - 3 * einsum("kijbac->abcijk", tau68)
+        + 8 * einsum("kijbca->abcijk", tau68)
+        + 2 * einsum("kijcab->abcijk", tau68)
+        - 4 * einsum("kijcba->abcijk", tau68)
+        - 4 * einsum("kjiabc->abcijk", tau68)
+        + 8 * einsum("kjiacb->abcijk", tau68)
+        + 2 * einsum("kjibac->abcijk", tau68)
+        - 4 * einsum("kjibca->abcijk", tau68)
+        - 4 * einsum("kjicab->abcijk", tau68)
+        + 2 * einsum("kjicba->abcijk", tau68)
+        + 2 * einsum("ijkbac->abcijk", tau78)
+        - 2 * einsum("ijkcab->abcijk", tau78)
+        - 2 * einsum("ijkabc->abcijk", tau78)
+        + 4 * einsum("ijkcba->abcijk", tau78)
+        + 4 * einsum("ijkacb->abcijk", tau78)
+        - 8 * einsum("ijkbca->abcijk", tau78)
+        - 2 * einsum("jikbac->abcijk", tau78)
+        + 4 * einsum("jikcab->abcijk", tau78)
+        + 4 * einsum("jikabc->abcijk", tau78)
+        - 2 * einsum("jikcba->abcijk", tau78)
+        - 8 * einsum("jikacb->abcijk", tau78)
+        + 4 * einsum("jikbca->abcijk", tau78)
+        + 4 * einsum("kijbac->abcijk", tau78)
+        - 2 * einsum("kijcab->abcijk", tau78)
+        - 8 * einsum("kijabc->abcijk", tau78)
+        + 4 * einsum("kijcba->abcijk", tau78)
+        + 4 * einsum("kijacb->abcijk", tau78)
+        - 2 * einsum("kijbca->abcijk", tau78)
+        - 4 * einsum("ijkabc->abcijk", tau98)
+        + 2 * einsum("ijkacb->abcijk", tau98)
+        + 8 * einsum("ijkbac->abcijk", tau98)
+        - 4 * einsum("ijkbca->abcijk", tau98)
+        - 4 * einsum("ijkcab->abcijk", tau98)
+        + 2 * einsum("ijkcba->abcijk", tau98)
+        + 2 * einsum("ikjabc->abcijk", tau98)
+        - 4 * einsum("ikjacb->abcijk", tau98)
+        - 4 * einsum("ikjbac->abcijk", tau98)
+        + 2 * einsum("ikjbca->abcijk", tau98)
+        + 8 * einsum("ikjcab->abcijk", tau98)
+        - 4 * einsum("ikjcba->abcijk", tau98)
+        + 8 * einsum("jikabc->abcijk", tau98)
+        - 4 * einsum("jikacb->abcijk", tau98)
+        - 4 * einsum("jikbac->abcijk", tau98)
+        + 2 * einsum("jikbca->abcijk", tau98)
+        + 2 * einsum("jikcab->abcijk", tau98)
+        - 4 * einsum("jikcba->abcijk", tau98)
+        - 2 * einsum("jkiabc->abcijk", tau98)
+        + 2 * einsum("jkiacb->abcijk", tau98)
+        + 2 * einsum("jkibac->abcijk", tau98)
+        - 4 * einsum("jkibca->abcijk", tau98)
+        - 4 * einsum("jkicab->abcijk", tau98)
+        + 8 * einsum("jkicba->abcijk", tau98)
+        - 4 * einsum("kijabc->abcijk", tau98)
+        + 8 * einsum("kijacb->abcijk", tau98)
+        + 2 * einsum("kijbac->abcijk", tau98)
+        - 4 * einsum("kijbca->abcijk", tau98)
+        - 4 * einsum("kijcab->abcijk", tau98)
+        + 2 * einsum("kijcba->abcijk", tau98)
+        + 2 * einsum("kjiabc->abcijk", tau98)
+        - 4 * einsum("kjiacb->abcijk", tau98)
+        - 2 * einsum("kjibac->abcijk", tau98)
+        + 8 * einsum("kjibca->abcijk", tau98)
+        + 2 * einsum("kjicab->abcijk", tau98)
+        - 4 * einsum("kjicba->abcijk", tau98)
+        - 2 * einsum("ijkabc->abcijk", tau110)
+        + 4 * einsum("ijkacb->abcijk", tau110)
+        + 4 * einsum("ijkbac->abcijk", tau110)
+        - 2 * einsum("ijkbca->abcijk", tau110)
+        - 8 * einsum("ijkcab->abcijk", tau110)
+        + 4 * einsum("ijkcba->abcijk", tau110)
+        + 4 * einsum("ikjabc->abcijk", tau110)
+        - 2 * einsum("ikjacb->abcijk", tau110)
+        - 8 * einsum("ikjbac->abcijk", tau110)
+        + 4 * einsum("ikjbca->abcijk", tau110)
+        + 4 * einsum("ikjcab->abcijk", tau110)
+        - 2 * einsum("ikjcba->abcijk", tau110)
+        + 2 * einsum("jikabc->abcijk", tau110)
+        - 2 * einsum("jikacb->abcijk", tau110)
+        - 2 * einsum("jikbac->abcijk", tau110)
+        + 4 * einsum("jikbca->abcijk", tau110)
+        + 4 * einsum("jikcab->abcijk", tau110)
+        - 8 * einsum("jikcba->abcijk", tau110)
+        - 8 * einsum("jkiabc->abcijk", tau110)
+        + 4 * einsum("jkiacb->abcijk", tau110)
+        + 4 * einsum("jkibac->abcijk", tau110)
+        - 2 * einsum("jkibca->abcijk", tau110)
+        - 2 * einsum("jkicab->abcijk", tau110)
+        + 4 * einsum("jkicba->abcijk", tau110)
+        - 2 * einsum("kijabc->abcijk", tau110)
+        + 4 * einsum("kijacb->abcijk", tau110)
+        + 2 * einsum("kijbac->abcijk", tau110)
+        - 8 * einsum("kijbca->abcijk", tau110)
+        - 2 * einsum("kijcab->abcijk", tau110)
+        + 4 * einsum("kijcba->abcijk", tau110)
+        + 4 * einsum("kjiabc->abcijk", tau110)
+        - 8 * einsum("kjiacb->abcijk", tau110)
+        - 2 * einsum("kjibac->abcijk", tau110)
+        + 4 * einsum("kjibca->abcijk", tau110)
+        + 4 * einsum("kjicab->abcijk", tau110)
+        - 2 * einsum("kjicba->abcijk", tau110)
+        - 2 * einsum("ijkabc->abcijk", tau117)
+        + 4 * einsum("ijkacb->abcijk", tau117)
+        + 2 * einsum("ijkbac->abcijk", tau117)
+        - 8 * einsum("ijkbca->abcijk", tau117)
+        - 2 * einsum("ijkcab->abcijk", tau117)
+        + 4 * einsum("ijkcba->abcijk", tau117)
+        + 2 * einsum("ikjabc->abcijk", tau117)
+        - 2 * einsum("ikjacb->abcijk", tau117)
+        - 2 * einsum("ikjbac->abcijk", tau117)
+        + 4 * einsum("ikjbca->abcijk", tau117)
+        + 4 * einsum("ikjcab->abcijk", tau117)
+        - 8 * einsum("ikjcba->abcijk", tau117)
+        + 4 * einsum("jikabc->abcijk", tau117)
+        - 8 * einsum("jikacb->abcijk", tau117)
+        - 2 * einsum("jikbac->abcijk", tau117)
+        + 4 * einsum("jikbca->abcijk", tau117)
+        + 4 * einsum("jikcab->abcijk", tau117)
+        - 2 * einsum("jikcba->abcijk", tau117)
+        - 2 * einsum("jkiabc->abcijk", tau117)
+        + 4 * einsum("jkiacb->abcijk", tau117)
+        + 4 * einsum("jkibac->abcijk", tau117)
+        - 2 * einsum("jkibca->abcijk", tau117)
+        - 8 * einsum("jkicab->abcijk", tau117)
+        + 4 * einsum("jkicba->abcijk", tau117)
+        - 8 * einsum("kijabc->abcijk", tau117)
+        + 4 * einsum("kijacb->abcijk", tau117)
+        + 4 * einsum("kijbac->abcijk", tau117)
+        - 2 * einsum("kijbca->abcijk", tau117)
+        - 2 * einsum("kijcab->abcijk", tau117)
+        + 4 * einsum("kijcba->abcijk", tau117)
+        + 4 * einsum("kjiabc->abcijk", tau117)
+        - 2 * einsum("kjiacb->abcijk", tau117)
+        - 8 * einsum("kjibac->abcijk", tau117)
+        + 4 * einsum("kjibca->abcijk", tau117)
+        + 4 * einsum("kjicab->abcijk", tau117)
+        - 2 * einsum("kjicba->abcijk", tau117)
+        - 4 * einsum("ijkacb->abcijk", tau125)
+        + 8 * einsum("ijkabc->abcijk", tau125)
+        + 2 * einsum("ijkbca->abcijk", tau125)
+        - 4 * einsum("ijkbac->abcijk", tau125)
+        - 4 * einsum("ijkcba->abcijk", tau125)
+        + 2 * einsum("ijkcab->abcijk", tau125)
+        + 2 * einsum("jikacb->abcijk", tau125)
+        - 4 * einsum("jikabc->abcijk", tau125)
+        - 3 * einsum("jikbca->abcijk", tau125)
+        + 8 * einsum("jikbac->abcijk", tau125)
+        + 2 * einsum("jikcba->abcijk", tau125)
+        - 4 * einsum("jikcab->abcijk", tau125)
+        - 3 * einsum("kijacb->abcijk", tau125)
+        + 2 * einsum("kijabc->abcijk", tau125)
+        + 2 * einsum("kijbca->abcijk", tau125)
+        - 4 * einsum("kijbac->abcijk", tau125)
+        - 4 * einsum("kijcba->abcijk", tau125)
+        + 8 * einsum("kijcab->abcijk", tau125)
+        - 2 * einsum("ijkabc->abcijk", tau136)
+        + 2 * einsum("ijkacb->abcijk", tau136)
+        + 2 * einsum("ijkbac->abcijk", tau136)
+        - 4 * einsum("ijkbca->abcijk", tau136)
+        - 4 * einsum("ijkcab->abcijk", tau136)
+        + 8 * einsum("ijkcba->abcijk", tau136)
+        + 2 * einsum("ikjabc->abcijk", tau136)
+        - 4 * einsum("ikjacb->abcijk", tau136)
+        - 2 * einsum("ikjbac->abcijk", tau136)
+        + 8 * einsum("ikjbca->abcijk", tau136)
+        + 2 * einsum("ikjcab->abcijk", tau136)
+        - 4 * einsum("ikjcba->abcijk", tau136)
+        + 2 * einsum("jikabc->abcijk", tau136)
+        - 4 * einsum("jikacb->abcijk", tau136)
+        - 4 * einsum("jikbac->abcijk", tau136)
+        + 2 * einsum("jikbca->abcijk", tau136)
+        + 8 * einsum("jikcab->abcijk", tau136)
+        - 4 * einsum("jikcba->abcijk", tau136)
+        - 4 * einsum("jkiabc->abcijk", tau136)
+        + 8 * einsum("jkiacb->abcijk", tau136)
+        + 2 * einsum("jkibac->abcijk", tau136)
+        - 4 * einsum("jkibca->abcijk", tau136)
+        - 4 * einsum("jkicab->abcijk", tau136)
+        + 2 * einsum("jkicba->abcijk", tau136)
+        - 4 * einsum("kijabc->abcijk", tau136)
+        + 2 * einsum("kijacb->abcijk", tau136)
+        + 8 * einsum("kijbac->abcijk", tau136)
+        - 4 * einsum("kijbca->abcijk", tau136)
+        - 4 * einsum("kijcab->abcijk", tau136)
+        + 2 * einsum("kijcba->abcijk", tau136)
+        + 8 * einsum("kjiabc->abcijk", tau136)
+        - 4 * einsum("kjiacb->abcijk", tau136)
+        - 4 * einsum("kjibac->abcijk", tau136)
+        + 2 * einsum("kjibca->abcijk", tau136)
+        + 2 * einsum("kjicab->abcijk", tau136)
+        - 4 * einsum("kjicba->abcijk", tau136)
+    )
+    return Tensors(t1=r1, t2=r2, t3=r3)
