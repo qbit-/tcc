@@ -124,6 +124,18 @@ class RCCSD_UNIT(RCCSD):
     RCCSD equations based entirely on the unitary group operators
     """
 
+    def init_amplitudes(self, ham):
+        """
+        Initialize amplitudes from interaction
+        """
+        e_ai = cc_denom(ham.f, 2, 'dir', 'full')
+        e_abij = cc_denom(ham.f, 4, 'dir', 'full')
+
+        t1 = 2 * ham.f.ov.transpose().conj() * (- e_ai)
+        t2 = 2 * ham.v.oovv.transpose([2, 3, 0, 1]).conj() * (- e_abij)
+
+        return Tensors(t1=t1, t2=t2)
+
     def calculate_energy(self, h, a):
         """
         Calculate RCCSD energy
@@ -138,6 +150,17 @@ class RCCSD_UNIT(RCCSD):
 
         return _rccsd_unit_calc_residuals(h, a)
 
+    def update_rhs(self, h, a, r):
+        """
+        Calculates RHS of the fixed point iteration of CC equations
+        """
+
+        return Tensors(
+            t1=r.t1 - 2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
+            t2=r.t2 - 2 * (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])
+                           ) / cc_denom(h.f, 4, 'dir', 'full')
+        )
+
     def solve_amps(self, h, a, g):
         """
         Solving for new T amlitudes using RHS and denominator
@@ -149,29 +172,6 @@ class RCCSD_UNIT(RCCSD):
             t1=g.t1 / (- 2) * cc_denom(h.f, 2, 'dir', 'full'),
             t2=(2 * g.t2 + g.t2.transpose([0, 1, 3, 2])
                 ) / (- 6) * cc_denom(h.f, 4, 'dir', 'full')
-        )
-
-    def init_amplitudes(self, ham):
-        """
-        Initialize amplitudes from interaction
-        """
-        e_ai = cc_denom(ham.f, 2, 'dir', 'full')
-        e_abij = cc_denom(ham.f, 4, 'dir', 'full')
-
-        t1 = 2 * ham.f.ov.transpose().conj() * (- e_ai)
-        t2 = 2 * ham.v.oovv.transpose([2, 3, 0, 1]).conj() * (- e_abij)
-
-        return Tensors(t1=t1, t2=t2)
-
-    def update_rhs(self, h, a, r):
-        """
-        Calculates RHS of the fixed point iteration of CC equations
-        """
-
-        return Tensors(
-            t1=r.t1 - 2 * a.t1 / cc_denom(h.f, 2, 'dir', 'full'),
-            t2=r.t2 - 2 * (2 * a.t2 - a.t2.transpose([0, 1, 3, 2])
-                           ) / cc_denom(h.f, 4, 'dir', 'full')
         )
 
 
