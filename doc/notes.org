@@ -135,3 +135,67 @@ hence the idea of the method:
     Tom says that truncating the number of bodies 
     sequentially as \bar{H}2 = trunc(\hbar{H}) = trunc(exp(-T) H exp(T))
     \dbar{H}2 = trunc(exp(Z) \bar{H}2 exp(-Z)) does not work well
+* Triples
+  As follows from the example code, residuals are never zero 
+  for triples in RCCSDT. This is possibly caused by the 
+  overdetermined equations for restricted triples.
+  
+  Two ways of solving RCCSDT were found to work, although it is
+  still not clear which one is right.
+ 
+  Residuals in RCCSDT are: 
+  
+  < a b \bar{c} i^{+} j^{+} \bar{k}^{+} | \bar{H} | 0 > = R_{i j \bar{k}}^{a b \bar{c}} = RO
+
+  R_{i j \bar{k}}^{a b \bar{c}} = G_{i j \bar{k}}^{a b \bar{c}} + D * (t_{i j k}^{a b c}
+  - t_{j i k}^{a b c}) 
+    
+  Note that it is not possible to get t from RO, because RO only determines an antisymmetric
+  part of t, but not the symmetric part.
+  RO is the opposite spin residual. Same spin residuals (and amplitudes) can be obtained 
+  as follows (from Gus'es notes):
+ 
+  RS_{i j \bar{k}}^{a b \bar{c}} = (RO_{i j \bar{k}}^{a b \bar{c}} + RO_{i \bar{k} j}^{a b \bar{c}}
+  + RO_{\bar{k} i j }^{a b \bar{c}})
+
+  TS_{i j \bar{k}}^{a b \bar{c}} = (TO_{i j \bar{k}}^{a b \bar{c}} + TO_{i \bar{k} j}^{a b \bar{c}}
+  + TO_{\bar{k} i j}^{a b \bar{c}})
+
+  TS and TO are antisymmetric, hence we can express TS through TO 
+  and entirely through t.
+ 
+  Full unitary residual is:
+  < E_{a}^{i} E_{b}^{j} E_{c}^{k} | \bar{H} | 0> = RU_{ijk}^{abc} = (2 * RS_{ijk}^{abc}
+  + 2 * RO_{i j \bar{k}}^{ab \bar{c}} + 2 * RO_{i \bar{j} k}^{a \bar{b} c}
+  + 2 * RO_{\bar{i} j k}^{\bar{a} b c}) = 2 * RS + 6 * RO (with proper permutations of indices)
+    
+  RU can be expressed completely through t. However, it seems that it is not possible
+  to express t through RU, which is just a linear combination of RO. (underdetermined system?).
+  
+  t should have the following symmetries, due to the unitary group generators:
+  t_{ijk}^{abc} = t_{jik}^{bac} = t_{jki}^{bca} = t_{kji}^{cba} = t_{kij}^{cab} = t_{ikj}^{acb}
+  because \hat{t} = t_{ijk}^{abc} * E_{i}^{a} E_{j}^{b} E_{k}^{c} and E_{i}^{a} E_{j}^{b} = E_{j}^{b} E_{i}^{a}
+
+  The way I solve for t is as follows. I write RU in terms of t (either through RO 
+  or directly using Drudge, which gives equivalent formulas). 
+  RU_{ijk}^{abc} = GU_{ijk}^{abc} + D * (- 4 * t_{jik}^{abc} - 4 * t_{kji}^{abc} - 4 * t_{ikj}^{abc}
+  + 2 * t_{kij}^{abc} + 2 * t_{jki}^{abc} + 8 * t_{ijk}^{abc}
+
+  I then divide RU by 12 * D (number of t terms in the expression above),
+  and symmetrize the result to have the symmetries of t required by the unitary group.
+  This leads to a stable RCCSDT, which gives energy higher then in Aquarius program, which 
+  does UCCSDT, but lower then RCCSD. I can not find a benchmark supporting 
+  the correctness of the procedure, though.
+  
+  If, however, I form from RO another combination, this also gives a stable algorithm.
+  This combination is:
+  Ralt = RO_{ijk}^{abc} + RO_{jik}^{bac} + RO_{jki}^{bca} + RO_{kji}^{cba} + RO_{kij}^{cab} + RO_{ikj}^{acb}
+  (e.g. apply symmetries of t to RO). Note that 
+  RU = Ralt + 2 * RS
+  e.g. Ralt is a part of RU without same spin components. If this residual is divided by 6 * D
+  (the number of terms t in the expression) and symmetrized to have the symmetries of of t, 
+  then the resulting procedure yeilds energy coinciding up to 7 digits with So Hirata's CCSDT
+  benchmark on his website. This energy is lower then what a procedure with full RU residual yeilds,
+  and it feels that full RU is more correct.
+
+  
