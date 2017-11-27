@@ -523,7 +523,8 @@ def test_show_cc_divergence():   # pragma: nocover
     plt.ylim(None, 8)
     plt.legend(['$|dE|$', '$|{}^2 T - {}^2 T_{symmetric}|$'])
     plt.title(
-        'Unstable RCCSD algorithm on 1D Hubbard, 10 sites, U = 2, PBC')
+        'Unstable RCCSD algorithm on 1D Hubbard, 10 sites, U = 3, PBC')
+    fig.savefig('classic_cc_divergence.eps')
     plt.show()
 
 
