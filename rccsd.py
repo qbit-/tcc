@@ -178,11 +178,15 @@ class RCCSD_UNIT(RCCSD):
         It is assumed that the order of fields in the RHS
         is consistent with the order in amplitudes
         """
+        # Solve
+        t2 = ((2 * g.t2 + g.t2.transpose([0, 1, 3, 2]))
+              / (- 6) * cc_denom(h.f, 4, 'dir', 'full'))
+        # Symmetrize
+        t2 = 1 / 2 * (t2 + t2.transpose([1, 0, 3, 2]))
 
         return Tensors(
             t1=g.t1 / (- 2) * cc_denom(h.f, 2, 'dir', 'full'),
-            t2=(2 * g.t2 + g.t2.transpose([0, 1, 3, 2])
-                ) / (- 6) * cc_denom(h.f, 4, 'dir', 'full')
+            t2=t2
         )
 
 
