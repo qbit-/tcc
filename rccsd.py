@@ -72,17 +72,6 @@ class RCCSD(CC):
 
         return _rccsd_calc_residuals(h, a)
 
-    def solve_amps(self, h, a, g):
-        """
-        Solving for new T amlitudes using RHS and denominator
-        tensor
-        """
-
-        def multiply_by_inverse(x):
-            return x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
-
-        return g.map(multiply_by_inverse)
-
     def update_rhs(self, h, a, r):
         """
         Updates right hand side of the CC equations, commonly referred as G
@@ -99,6 +88,17 @@ class RCCSD(CC):
         # g['t2'] = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
 
         return g
+
+    def solve_amps(self, h, a, g):
+        """
+        Solving for new T amlitudes using RHS and denominator
+        tensor
+        """
+
+        def multiply_by_inverse(x):
+            return x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
+
+        return g.map(multiply_by_inverse)
 
     def calculate_gradient(self, h, a):
         """
@@ -178,11 +178,15 @@ class RCCSD_UNIT(RCCSD):
         It is assumed that the order of fields in the RHS
         is consistent with the order in amplitudes
         """
+        # Solve
+        t2 = ((2 * g.t2 + g.t2.transpose([0, 1, 3, 2]))
+              / (- 6) * cc_denom(h.f, 4, 'dir', 'full'))
+        # Symmetrize
+        t2 = 1 / 2 * (t2 + t2.transpose([1, 0, 3, 2]))
 
         return Tensors(
             t1=g.t1 / (- 2) * cc_denom(h.f, 2, 'dir', 'full'),
-            t2=(2 * g.t2 + g.t2.transpose([0, 1, 3, 2])
-                ) / (- 6) * cc_denom(h.f, 4, 'dir', 'full')
+            t2=t2
         )
 
 
@@ -515,6 +519,33 @@ def test_show_cc_divergence():   # pragma: nocover
     # fig.savefig('divergence.png')
 
 
+def test_unit_equivalence():
+    """
+    Shows that two unitary residual formulations of CC
+    are equivalent
+    """
+    from pyscf import gto
+    from pyscf import scf
+    from tcc.hubbard import hubbard_from_scf
+    rhf = hubbard_from_scf(scf.RHF, 10, 10, 3, 'y')
+    rhf.damp = -4.0
+    rhf.scf()
+
+    from tcc.cc_solvers import classic_solver
+    from tcc.rccsd import RCCSD, RCCSD_UNIT
+    cc1 = RCCSD(rhf)
+    converged1, energy1, amps1 = classic_solver(
+        cc1, conv_tol_energy=1e-12, conv_tol_res=1e-12,
+        max_cycle=120)
+
+    cc2 = RCCSD_UNIT(rhf)
+    converged2, energy2, amps2 = classic_solver(
+        cc2, conv_tol_energy=1e-12, conv_tol_res=1e-12,
+        max_cycle=120)
+    print('cc1: E: {}, norm: {}'.format(energy1, cc1._dnorms[-1]))
+    print('cc2: E: {}, norm: {}'.format(energy2, cc2._dnorms[-1]))
+
+
 if __name__ == '__main__':
     # test_mp2_energy()
     # test_cc_hubbard()
@@ -522,4 +553,5 @@ if __name__ == '__main__':
     # test_cc_step()
     # compare_to_aq()
     # test_compare_to_hirata()
-    test_show_cc_divergence()
+    # test_show_cc_divergence()
+    test_unit_equivalence()
