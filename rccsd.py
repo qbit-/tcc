@@ -507,11 +507,12 @@ def test_show_cc_divergence():   # pragma: nocover
     cc = RCCSD(rhf)
     converged, energy, _ = classic_solver(
         cc, conv_tol_energy=1e-12, conv_tol_res=1e-12,
-        max_cycle=200)
-    from matplotlib import pyplot as plt
-    fig, ax = plt.subplots()
-    ax.plot(cc._dEs)
-    fig.savefig('divergence.png')
+        max_cycle=120)
+    print('dE: {}, norm: {}'.format(cc._dEs[-1], cc._dnorms[-1]))
+    # from matplotlib import pyplot as plt
+    # fig, ax = plt.subplots()
+    # ax.semilogy(cc._dEs)
+    # fig.savefig('divergence.png')
 
 
 if __name__ == '__main__':
