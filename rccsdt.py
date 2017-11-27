@@ -119,40 +119,71 @@ class RCCSDT(CC):
                # + 2 * g3s) / 12   # %2
                ) / 6)
 
-        g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+        # Solve T2
+        t2 = g.t2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
+
+        # Symmetrize
+        t2 = (t2 + t2.transpose([1, 0, 3, 2])) / 2
+
+        # Solve T3
+        t3 = g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
+
+        # Symmetrize
+        t3 = ((+ t3
+               + t3.transpose([1, 2, 0, 4, 5, 3])
+               + t3.transpose([2, 0, 1, 5, 3, 4])
+               + t3.transpose([0, 2, 1, 3, 5, 4])
+               + t3.transpose([2, 1, 0, 5, 4, 3])
+               + t3.transpose([1, 0, 2, 4, 3, 5])
+               ) / 6)
+
         return Tensors(
             t1=g.t1 * (- cc_denom(h.f, g.t1.ndim, 'dir', 'full')),
-            t2=g2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full')),
-            t3=g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
+            t2=t2,
+            t3=t3
         )
 
-    def calculate_gradient(self, h, a):
+    def calculate_update(self, h, a):
         """
         Calculate approximate gradient of T
         """
         r = self.calc_residuals(h, a)
         # Apply n_body symmetry
-        # This gradient has to be modified an symmetrized
+        # This residual has to be modified
         # to yeild unitary group residual.
-        # Now we just symmetrize it to reproduce Hiratas
-        # solution
+        #
+        # Now we build just a part of the unitary
+        # residual to reproduce So Hiratas solution
         # r3s = (+ r.t3
         #        - r.t3.transpose([0, 1, 2, 3, 5, 4])
         #        + r.t3.transpose([0, 1, 2, 4, 5, 3]))
-        r3 = (+ r.t3
-              + r.t3.transpose([1, 2, 0, 4, 5, 3])
-              + r.t3.transpose([2, 0, 1, 5, 3, 4])
-              + r.t3.transpose([0, 2, 1, 3, 5, 4])
-              + r.t3.transpose([2, 1, 0, 5, 4, 3])
-              + r.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
+        r['r3'] = (+ r.t3
+                   + r.t3.transpose([1, 2, 0, 4, 5, 3])
+                   + r.t3.transpose([2, 0, 1, 5, 3, 4])
+                   + r.t3.transpose([0, 2, 1, 3, 5, 4])
+                   + r.t3.transpose([2, 1, 0, 5, 4, 3])
+                   + r.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
         # + 2 * r3s) / 12)
-
-        dt = Tensors(t1=r.t1, t2=r.t2, t3=r3)
 
         def multiply_by_inverse(x):
             return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
 
-        return dt.map(multiply_by_inverse)
+        # Solve
+        dt = r.map(multiply_by_inverse)
+
+        # Symmetrize T2
+        dt['t2'] = (+ dt.t2
+                    + dt.t2.transpose([1, 0, 3, 2])) / 2
+
+        # Symmetrize T3
+        dt['t3'] = (+ dt.t3
+                    + dt.t3.transpose([1, 2, 0, 4, 5, 3])
+                    + dt.t3.transpose([2, 0, 1, 5, 3, 4])
+                    + dt.t3.transpose([0, 2, 1, 3, 5, 4])
+                    + dt.t3.transpose([2, 1, 0, 5, 4, 3])
+                    + dt.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
+
+        return dt
 
 
 class RCCSDT_UNIT(CC):
@@ -161,8 +192,6 @@ class RCCSDT_UNIT(CC):
     vvvooo, vvoo, vo ordered amplitudes and Dirac ordered integrals
     Residuals are defined with respect to unitary group generators
     """
-    #  These are containers used by all  methods of this class
-    # to pass numpy arrays
 
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
                  mo_occ=None):
@@ -244,31 +273,57 @@ class RCCSDT_UNIT(CC):
         It is assumed that the order of fields in the RHS
         is consistent with the order in amplitudes
         """
-        # Symmetrize
-        g3 = (+ g.t3
-              + g.t3.transpose([1, 2, 0, 4, 5, 3])
-              + g.t3.transpose([2, 0, 1, 5, 3, 4])
-              + g.t3.transpose([0, 2, 1, 3, 5, 4])
-              + g.t3.transpose([2, 1, 0, 5, 4, 3])
-              + g.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
 
-        t3 = (g3 / 12
+        # Solve T2 (see RCCSD_UNIT)
+        t2 = ((2 * g.t2 + g.t2.transpose([0, 1, 3, 2]))
+              / (- 6) * cc_denom(h.f, 4, 'dir', 'full'))
+
+        # Symmetrize
+        t2 = (+ t2
+              + t2.transpose([1, 0, 3, 2])) / 2
+
+        # Solve T3
+        t3 = (g.t3 / 12
               * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full')))
+
+        # Symmetrize
+        t3 = (+ t3
+              + t3.transpose([1, 2, 0, 4, 5, 3])
+              + t3.transpose([2, 0, 1, 5, 3, 4])
+              + t3.transpose([0, 2, 1, 3, 5, 4])
+              + t3.transpose([2, 1, 0, 5, 4, 3])
+              + t3.transpose([1, 0, 2, 4, 3, 5])) / 6
 
         return Tensors(
             t1=g.t1 * (- cc_denom(h.f, g.t1.ndim, 'dir', 'full')),
-            t2=(2 * g.t2 + g.t2.transpose([0, 1, 3, 2])
-                ) / (- 6) * cc_denom(h.f, 4, 'dir', 'full'),
+            t2=t2,
             t3=t3
         )
 
     def calculate_update(self, h, a):
         """
-        Do normal update
+        Calculate new amplitudes from old ones
         """
         r = self.calc_residuals(h, a)
-        g = self.update_rhs(h, a, r)
-        return self.solve_amps(h, a, g)
+
+        def multiply_by_inverse(x):
+            return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
+
+        dt = r.map(multiply_by_inverse)
+
+        # Symmetrize T2
+        dt['t2'] = (+ dt.t2
+                    + dt.t2.transpose([1, 0, 3, 2])) / 2
+
+        # Symmetrize T3
+        dt['t3'] = (+ dt.t3
+                    + dt.t3.transpose([1, 2, 0, 4, 5, 3])
+                    + dt.t3.transpose([2, 0, 1, 5, 3, 4])
+                    + dt.t3.transpose([0, 2, 1, 3, 5, 4])
+                    + dt.t3.transpose([2, 1, 0, 5, 4, 3])
+                    + dt.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
+
+        return dt
 
 
 class RCCSDT_UNIT_ANTI(CC):
@@ -477,6 +532,7 @@ def test_cc_unit():   # pragma: nocover
     dr = res.t3 - r3
     import numpy as np
     norms = res.map(np.linalg.norm)
+    print('E: {}'.format(energy))
     print('r1: {}, r2: {}, r3: {}, r3_nbody: {}'.format(
         norms.t1, norms.t2, norms.t3, np.linalg.norm(r3)))
     print('dr: {}'.format(np.linalg.norm(dr)))
@@ -519,6 +575,7 @@ def test_cc_broken_sym():   # pragma: nocover
 
     import numpy as np
     norms = res.map(np.linalg.norm)
+    print('E: {}'.format(energy))
     print('r1: {}, r2: {}, r3: {}, r3_nbody: {}'.format(
         norms.t1, norms.t2, norms.t3, np.linalg.norm(r3)))
     print('dE: {}'.format(energy - -1.311811e-01))
@@ -631,7 +688,7 @@ def test_compare_to_hirata():   # pragma: nocover
 
 if __name__ == '__main__':
     # test_cc_anti()
-    # test_cc_unit()
-    # test_cc_broken_sym()
+    test_cc_unit()
+    test_cc_broken_sym()
     # test_compare_to_aq()
-    test_compare_to_hirata()
+    # test_compare_to_hirata()
