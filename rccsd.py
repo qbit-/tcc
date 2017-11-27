@@ -511,12 +511,20 @@ def test_show_cc_divergence():   # pragma: nocover
     cc = RCCSD(rhf)
     converged, energy, _ = classic_solver(
         cc, conv_tol_energy=1e-12, conv_tol_res=1e-12,
-        max_cycle=120)
-    print('dE: {}, norm: {}'.format(cc._dEs[-1], cc._dnorms[-1]))
-    # from matplotlib import pyplot as plt
-    # fig, ax = plt.subplots()
-    # ax.semilogy(cc._dEs)
-    # fig.savefig('divergence.png')
+        max_cycle=200)
+    # print('dE: {}, norm: {}'.format(cc._dEs[-1], cc._dnorms[-1]))
+    import numpy as np
+    from matplotlib import pyplot as plt
+    fig, ax = plt.subplots()
+    ax.semilogy(np.abs(cc._dEs))
+    ax.semilogy(cc._dnorms)
+    plt.xlabel('Number of iterations')
+    plt.ylabel('log($x$)')
+    plt.ylim(None, 8)
+    plt.legend(['$|dE|$', '$|{}^2 T - {}^2 T_{symmetric}|$'])
+    plt.title(
+        'Unstable RCCSD algorithm on 1D Hubbard, 10 sites, U = 2, PBC')
+    plt.show()
 
 
 def test_unit_equivalence():
@@ -553,5 +561,5 @@ if __name__ == '__main__':
     # test_cc_step()
     # compare_to_aq()
     # test_compare_to_hirata()
-    # test_show_cc_divergence()
-    test_unit_equivalence()
+    test_show_cc_divergence()
+    # test_unit_equivalence()
