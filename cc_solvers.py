@@ -146,7 +146,8 @@ def classic_solver(cc, amps=None, max_cycle=50,
 
     energy = cc.calculate_energy(ham, amps)
     cc._emp2 = energy
-
+    cc._dEs = []
+    cc._dnorms = []
     for istep in range(max_cycle):
         res = cc.calc_residuals(ham, amps)
         rhs = cc.update_rhs(ham, amps, res)
@@ -173,6 +174,10 @@ def classic_solver(cc, amps=None, max_cycle=50,
                                   for field_name, val in norm_diff_amps.items()))
 
         dE = new_energy - energy
+        cc._dEs.append(dE)
+        t2s = 1 / 2 * (amps.t2 + amps.t2.transpose([1, 0, 3, 2]))
+        cc._dnorms.append(np.linalg.norm(amps.t2 - t2s))
+
         if abs(dE) < conv_tol_energy:
             cc._converged = True
         if abs(max_val) < conv_tol_res:

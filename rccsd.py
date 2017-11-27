@@ -96,7 +96,7 @@ class RCCSD(CC):
         # tensors having an n_body symmetry and hence have always a
         # contracting algorithm. See RCCSDT notes for more discussion.
         # This should be done with a separate function
-        g['t2'] = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+        # g['t2'] = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
 
         return g
 
@@ -106,7 +106,7 @@ class RCCSD(CC):
         """
         r = self.calc_residuals(h, a)
         # Symmetrize
-        r['t2'] = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
+        # r['t2'] = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
         def multiply_by_inverse(x):
             return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
@@ -119,7 +119,7 @@ class RCCSD(CC):
         """
         r = self.calc_residuals(h, a)
         # Symmetrize
-        r['t2'] = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
+        # r['t2'] = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
         def multiply_by_inverse(x):
             return x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
@@ -494,10 +494,31 @@ def test_compare_to_hirata():   # pragma: nocover
     print('delta E: {}'.format(energy - -0.0501273286))
 
 
+def test_show_cc_divergence():   # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    from tcc.hubbard import hubbard_from_scf
+    rhf = hubbard_from_scf(scf.RHF, 10, 10, 3, 'y')
+    rhf.damp = -4.0
+    rhf.scf()
+
+    from tcc.cc_solvers import classic_solver
+    from tcc.rccsd import RCCSD
+    cc = RCCSD(rhf)
+    converged, energy, _ = classic_solver(
+        cc, conv_tol_energy=1e-12, conv_tol_res=1e-12,
+        max_cycle=200)
+    from matplotlib import pyplot as plt
+    fig, ax = plt.subplots()
+    ax.plot(cc._dEs)
+    fig.savefig('divergence.png')
+
+
 if __name__ == '__main__':
     # test_mp2_energy()
     # test_cc_hubbard()
     # test_cc_unitary()
     # test_cc_step()
     # compare_to_aq()
-    test_compare_to_hirata()
+    # test_compare_to_hirata()
+    test_show_cc_divergence()
