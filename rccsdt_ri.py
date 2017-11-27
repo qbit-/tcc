@@ -7,14 +7,12 @@ from tcc._rccsdt_mul import (_rccsdt_mul_ri_calculate_energy,
                              _rccsdt_mul_ri_calc_residuals)
 
 
-class RCCSDT_MUL_RI(CC):
+class RCCSDT_UNIT_RI(CC):
     """
     This class implements classic RCCSDT method with
     t1: vo, t2: vvoo, t3: vvvooo ordered amplitudes
     and RI decomposed integrals
     """
-    #  These are containers used by all  methods of this class
-    # to pass numpy arrays
 
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
                  mo_occ=None):
@@ -93,43 +91,48 @@ class RCCSDT_MUL_RI(CC):
         is consistent with the order in amplitudes
         """
 
-        g3 = (+ g.t3
-              + g.t3.transpose([1, 2, 0, 4, 5, 3])
-              + g.t3.transpose([2, 0, 1, 5, 3, 4])
-              + g.t3.transpose([0, 2, 1, 3, 5, 4])
-              + g.t3.transpose([2, 1, 0, 5, 4, 3])
-              + g.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
+        # Apply n_body symmetry, which builds all
+        # other spin parts of the unitary group residual
+        g3s = (+ g.t3
+               - g.t3.transpose([0, 1, 2, 3, 5, 4])
+               + g.t3.transpose([0, 1, 2, 4, 5, 3]))
+        g3 = ((+ g.t3
+               + g.t3.transpose([1, 2, 0, 4, 5, 3])
+               + g.t3.transpose([2, 0, 1, 5, 3, 4])
+               + g.t3.transpose([0, 2, 1, 3, 5, 4])
+               + g.t3.transpose([2, 1, 0, 5, 4, 3])
+               + g.t3.transpose([1, 0, 2, 4, 3, 5])
+               + 2 * g3s) / 12)
 
         g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+
+        t2 = g2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
+        t3 = g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
+
+        # Symmetrize
+        t2 = 1 / 2 * (t2 + t2.transpose([1, 0, 3, 2]))
+        t3 = ((+ t3
+               + t3.transpose([1, 2, 0, 4, 5, 3])
+               + t3.transpose([2, 0, 1, 5, 3, 4])
+               + t3.transpose([0, 2, 1, 3, 5, 4])
+               + t3.transpose([2, 1, 0, 5, 4, 3])
+               + t3.transpose([1, 0, 2, 4, 3, 5])) / 6)
+
         return Tensors(
             t1=g.t1 * (- cc_denom(h.f, g.t1.ndim, 'dir', 'full')),
-            t2=g2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full')),
-            t3=g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
-        )
+            t2=t2,
+            t3=t3)
 
-    def calculate_gradient(self, h, a):
+    def calculate_update(self, h, a):
         """
-        Solving for new T amlitudes using RHS and denominator
+        Update amplitudes
         """
         r = self.calc_residuals(h, a)
-        r2 = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
-        r3 = (+ r.t3
-              + r.t3.transpose([1, 2, 0, 4, 5, 3])
-              + r.t3.transpose([2, 0, 1, 5, 3, 4])
-              + r.t3.transpose([0, 2, 1, 3, 5, 4])
-              + r.t3.transpose([2, 1, 0, 5, 4, 3])
-              + r.t3.transpose([1, 0, 2, 4, 3, 5])) / 6 *\
-            cc_denom(h.f, 6, 'dir', 'full')
-
-        dt = Tensors(t1=r.t1, t2=r2, t3=r3)
-
-        def multiply_by_inverse(x):
-            return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
-
-        return dt.map(multiply_by_inverse)
+        g = self.update_rhs(h, a, r)
+        return self.solve_amps(h, a, g)
 
 
-class RCCSDT_MUL_RI_HUB(RCCSDT_MUL_RI):
+class RCCSDT_UNIT_RI_HUB(RCCSDT_UNIT_RI):
     """
     This class implements classic RCCSDT method with
     t1: vo, t2: vvoo, t3: vvvooo ordered amplitudes
@@ -159,12 +162,21 @@ def test_cc():   # pragma: nocover
     rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()
 
-    from tcc.rccsdt_mul import RCCSDT_MUL_RI
-    from tcc.cc_solvers import classic_solver
-    cc = RCCSDT_MUL_RI(rhf)
+    from tcc.rccsdt_ri import RCCSDT_UNIT_RI
+    from tcc.cc_solvers import (classic_solver,
+                                update_diis_solver)
+    cc = RCCSDT_UNIT_RI(rhf)
 
     converged, energy, amps = classic_solver(
         cc, conv_tol_energy=1e-8,
         max_cycle=100)
+    cc._converged = False
+    converged, energy, amps = update_diis_solver(
+        cc, conv_tol_energy=1e-8,
+        max_cycle=100)
 
-    print('dE: {}'.format(energy - -1.304876e-01))
+    print('dE: {}'.format(energy - -1.304738e-01))
+
+
+if __name__ == '__main__':
+    test_cc()
