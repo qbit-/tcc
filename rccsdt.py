@@ -109,7 +109,7 @@ class RCCSDT(CC):
         #        + g.t3.transpose([0, 1, 2, 4, 5, 3]))
 
         # Apply n_body symmetry, which builds all
-        # other spin parts of the unitary group residual
+        # "opposite spin" parts of the unitary group residual
         g3 = ((+ g.t3
                + g.t3.transpose([1, 2, 0, 4, 5, 3])
                + g.t3.transpose([2, 0, 1, 5, 3, 4])
@@ -132,12 +132,20 @@ class RCCSDT(CC):
         """
         r = self.calc_residuals(h, a)
         # Apply n_body symmetry
+        # This gradient has to be modified an symmetrized
+        # to yeild unitary group residual.
+        # Now we just symmetrize it to reproduce Hiratas
+        # solution
+        # r3s = (+ r.t3
+        #        - r.t3.transpose([0, 1, 2, 3, 5, 4])
+        #        + r.t3.transpose([0, 1, 2, 4, 5, 3]))
         r3 = (+ r.t3
               + r.t3.transpose([1, 2, 0, 4, 5, 3])
               + r.t3.transpose([2, 0, 1, 5, 3, 4])
               + r.t3.transpose([0, 2, 1, 3, 5, 4])
               + r.t3.transpose([2, 1, 0, 5, 4, 3])
               + r.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
+        # + 2 * r3s) / 12)
 
         dt = Tensors(t1=r.t1, t2=r.t2, t3=r3)
 
@@ -236,7 +244,7 @@ class RCCSDT_UNIT(CC):
         It is assumed that the order of fields in the RHS
         is consistent with the order in amplitudes
         """
-        # Extract an n_body part of the T3 RHS (and hence residual)
+        # Symmetrize
         g3 = (+ g.t3
               + g.t3.transpose([1, 2, 0, 4, 5, 3])
               + g.t3.transpose([2, 0, 1, 5, 3, 4])
@@ -246,13 +254,6 @@ class RCCSDT_UNIT(CC):
 
         t3 = (g3 / 12
               * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full')))
-        # Apply n_body symmetry - may this be skipped because of the above?
-        # t3 = (+ t3
-        #       + t3.transpose([1, 2, 0, 4, 5, 3])
-        #       + t3.transpose([2, 0, 1, 5, 3, 4])
-        #       + t3.transpose([0, 2, 1, 3, 5, 4])
-        #       + t3.transpose([2, 1, 0, 5, 4, 3])
-        #       + t3.transpose([1, 0, 2, 4, 3, 5])) / 6
 
         return Tensors(
             t1=g.t1 * (- cc_denom(h.f, g.t1.ndim, 'dir', 'full')),
@@ -282,8 +283,6 @@ class RCCSDT_UNIT_ANTI(CC):
     antisymmetric we forget about spin labels and treat all particles as
     spinless fermions in triple excitations.
     """
-    #  These are containers used by all  methods of this class
-    # to pass numpy arrays
 
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
                  mo_occ=None):
@@ -359,7 +358,7 @@ class RCCSDT_UNIT_ANTI(CC):
         It is assumed that the order of fields in the RHS
         is consistent with the order in amplitudes
         """
-
+        # Solve
         t3 = g.t3 / 24 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
         # Antisymmetrize over all indices (upper and lower separately)
         t3 = 1 / 6 * (+ t3
@@ -437,10 +436,11 @@ def test_cc_anti():   # pragma: nocover
         norms.t1, norms.t2, norms.t3, np.linalg.norm(r3)))
     # The energy should be higher than in the correct RCCSDT
     # due to more restrictions on the symmetry of T3 than needed
+    # r3 residual is not zero, but its antisymmetric part is
     print('dE: {}'.format(energy - -1.311811e-01))
 
 
-def test_cc():   # pragma: nocover
+def test_cc_unit():   # pragma: nocover
     from pyscf import gto
     from pyscf import scf
     mol = gto.Mole()
@@ -457,6 +457,49 @@ def test_cc():   # pragma: nocover
     from tcc.rccsdt import RCCSDT_UNIT
     from tcc.cc_solvers import classic_solver
     cc = RCCSDT_UNIT(rhf)
+
+    converged, energy, amps = classic_solver(
+        cc, conv_tol_energy=1e-12, conv_tol_res=1e-12,
+        lam=3,
+        max_cycle=100)
+
+    h = cc.create_ham()
+    res = cc.calc_residuals(h, amps)
+    r3 = res.t3
+    # Apply n_body symmetry
+    r3 = (+ r3
+          + r3.transpose([1, 2, 0, 4, 5, 3])
+          + r3.transpose([2, 0, 1, 5, 3, 4])
+          + r3.transpose([0, 2, 1, 3, 5, 4])
+          + r3.transpose([2, 1, 0, 5, 4, 3])
+          + r3.transpose([1, 0, 2, 4, 3, 5])) / 6
+
+    dr = res.t3 - r3
+    import numpy as np
+    norms = res.map(np.linalg.norm)
+    print('r1: {}, r2: {}, r3: {}, r3_nbody: {}'.format(
+        norms.t1, norms.t2, norms.t3, np.linalg.norm(r3)))
+    print('dr: {}'.format(np.linalg.norm(dr)))
+    print('dE: {}'.format(energy - -1.300682e-01))
+
+
+def test_cc_broken_sym():   # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.unit = 'Angstrom'
+    mol.atom = [
+        [8, (0., 0., 0.)],
+        [1, (0.,  -0.757, 0.587)],
+        [1, (0., 0.757, 0.587)]]
+    mol.basis = '3-21g'
+    mol.build()
+    rhf = scf.RHF(mol)
+    rhf.scf()
+
+    from tcc.rccsdt import RCCSDT
+    from tcc.cc_solvers import classic_solver
+    cc = RCCSDT(rhf)
 
     converged, energy, amps = classic_solver(
         cc, conv_tol_energy=1e-12, conv_tol_res=1e-12,
@@ -587,6 +630,8 @@ def test_compare_to_hirata():   # pragma: nocover
 
 
 if __name__ == '__main__':
-    test_cc()
+    # test_cc_anti()
+    # test_cc_unit()
+    # test_cc_broken_sym()
     # test_compare_to_aq()
-    # test_compare_to_hirata()
+    test_compare_to_hirata()
