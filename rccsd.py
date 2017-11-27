@@ -91,13 +91,22 @@ class RCCSD(CC):
         def divide_by_inverse(x):
             return x / (cc_denom(h.f, x.ndim, 'dir', 'full'))
 
-        return r - a.map(divide_by_inverse)
+        g = r - a.map(divide_by_inverse)
+        # Apply symmetrization to the RHS, so we sstay always with
+        # tensors having an n_body symmetry and hence have always a
+        # contracting algorithm. See RCCSDT notes for more discussion.
+        # This should be done with a separate function
+        g['t2'] = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+
+        return g
 
     def calculate_gradient(self, h, a):
         """
         Calculate dt
         """
         r = self.calc_residuals(h, a)
+        # Symmetrize
+        r['t2'] = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
         def multiply_by_inverse(x):
             return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
@@ -109,6 +118,8 @@ class RCCSD(CC):
         Calculate new amplitudes in one shot
         """
         r = self.calc_residuals(h, a)
+        # Symmetrize
+        r['t2'] = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
         def multiply_by_inverse(x):
             return x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
@@ -429,9 +440,64 @@ def test_cc_ri():  # pragma: nocover
         cc2, conv_tol_energy=-1)
 
 
+def test_compare_to_hirata():   # pragma: nocover
+    from pyscf import gto
+    from pyscf import scf
+    mol = gto.Mole()
+    mol.atom = """
+    # H2O
+    H    0.000000000000000   1.079252144093028   1.474611055780858
+    O    0.000000000000000   0.000000000000000   0.000000000000000
+    H    0.000000000000000   1.079252144093028  -1.474611055780858
+    """
+    mol.unit = 'Bohr'
+    mol.basis = {
+        'H': gto.basis.parse(
+            """
+            H         S   
+                      3.42525091         0.15432897
+                      0.62391373         0.53532814
+                      0.16885540         0.44463454
+            """
+        ),
+        'O': gto.basis.parse(
+            """
+            O         S   
+                    130.70932000         0.15432897
+                     23.80886100         0.53532814
+                      6.44360830         0.44463454
+            O         S   
+                      5.03315130        -0.09996723
+                      1.16959610         0.39951283
+                      0.38038900         0.70011547
+            O         P   
+                      5.03315130         0.15591627
+                      1.16959610         0.60768372
+                      0.38038900         0.39195739
+            """
+        ),
+    }
+    mol.build()
+    rhf = scf.RHF(mol)
+    rhf.scf()
+
+    from tcc.cc_solvers import classic_solver, update_diis_solver
+    from tcc.rccsd import RCCSD
+    cc1 = RCCSD(rhf)
+
+    converged, energy, amps = classic_solver(
+        cc1, conv_tol_energy=1e-10, lam=3, conv_tol_res=1e-10,
+        max_cycle=200)
+
+    print('E_cc: {}'.format(energy))
+    print('E_tot: {}'.format(rhf.e_tot + energy))
+    print('delta E: {}'.format(energy - -0.0501273286))
+
+
 if __name__ == '__main__':
     # test_mp2_energy()
     # test_cc_hubbard()
     # test_cc_unitary()
     # test_cc_step()
-    compare_to_aq()
+    # compare_to_aq()
+    test_compare_to_hirata()
