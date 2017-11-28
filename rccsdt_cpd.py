@@ -272,18 +272,34 @@ class RCCSDT_CPD_LS_T(CC):
         t3x_sym_a = [t3x_sym[0], t3x_sym[1], t3x_sym[2],
                      t3x_sym[4], t3x_sym[3], t3x_sym[5]]
 
+        # Build combinations of T for unitary residual
+        t3x_u = cpd_symmetrize(
+            t3x_sym,
+            {(0, 1, 2, 4, 3, 5): ('neg',),
+             (0, 1, 2, 5, 4, 3): ('neg',),
+             (0, 1, 2, 3, 5, 4): ('neg',),
+             (0, 1, 2, 5, 3, 4): ('ident',),
+             (0, 1, 2, 4, 5, 3): ('ident',), },
+            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
+
+        t3x_au = cpd_symmetrize(
+            t3x_sym_a,
+            {(0, 1, 2, 4, 3, 5): ('neg',),
+             (0, 1, 2, 5, 4, 3): ('neg',),
+             (0, 1, 2, 3, 5, 4): ('neg',),
+             (0, 1, 2, 5, 3, 4): ('ident',),
+             (0, 1, 2, 4, 5, 3): ('ident',), },
+            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
+
         t3 = [f for f in t3x]
         for idx in range(len(t2)):
             g = (als_contract_dense(t3, r3_d, idx,
                                     tensor_format='cpd')
-                 + als_contract_cpd(t3, t3x_sym, idx,
+                 + als_contract_cpd(t3, t3x_u, idx,
                                     tensor_format='cpd')
-                 - als_contract_cpd(t3, t3x_sym_a, idx,
+                 - als_contract_cpd(t3, t3x_au, idx,
                                     tensor_format='cpd')
                  )
-            # have to add proper contributions of T for
-            # unit residuals with coefficients divided by 12
-            raise NotImplemented("WIP")
 
             s = als_pseudo_inverse(t3, t3, idx)
             f = np.dot(g, s)
@@ -513,18 +529,34 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
         # 0 1 2 4 3 5 permutation of t3
         t3x_sym_a = [t3x_sym[0], t3x_sym[1], t3x_sym[2], t3x_sym[3],
                      t3x_sym[5], t3x_sym[4], t3x_sym[6]]
+        # Build combinations of T for unitary residual
+        t3x_u = ncpd_symmetrize(
+            t3x_sym,
+            {(0, 1, 2, 4, 3, 5): ('neg',),
+             (0, 1, 2, 5, 4, 3): ('neg',),
+             (0, 1, 2, 3, 5, 4): ('neg',),
+             (0, 1, 2, 5, 3, 4): ('ident',),
+             (0, 1, 2, 4, 5, 3): ('ident',), },
+            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
+
+        t3x_au = ncpd_symmetrize(
+            t3x_sym_a,
+            {(0, 1, 2, 4, 3, 5): ('neg',),
+             (0, 1, 2, 5, 4, 3): ('neg',),
+             (0, 1, 2, 3, 5, 4): ('neg',),
+             (0, 1, 2, 5, 3, 4): ('ident',),
+             (0, 1, 2, 4, 5, 3): ('ident',), },
+            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
+
         t3 = [f for f in t3x]
         for idx in range(len(t3)):
             g = (als_contract_dense(t3, r3_d, idx,
                                     tensor_format='ncpd')
-                 + als_contract_cpd(t3, t3x_sym, idx,
+                 + als_contract_cpd(t3, t3x_u, idx,
                                     tensor_format='ncpd')
-                 - als_contract_cpd(t3, t3x_sym_a, idx,
+                 - als_contract_cpd(t3, t3x_au, idx,
                                     tensor_format='ncpd')
                  )
-            # have to add proper contributions of T for
-            # unit residuals with coefficients divided by 12
-            raise NotImplemented("WIP")
 
             s = als_pseudo_inverse(t3, t3, idx)
             f = np.dot(g, s)
@@ -583,22 +615,22 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
         Updates right hand side of the CC equations, commonly referred as G
         """
 
-        t3names = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6']
+        t3names = ['xlam', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6']
         t3x = [a.t3[key] for key in t3names]
 
         # symmetrize t3 before feeding into res
-        t3x_sym = cpd_symmetrize(t3x, {(1, 2, 0, 4, 5, 3): ('ident',),
-                                       (2, 0, 1, 5, 3, 4): ('ident',),
-                                       (0, 2, 1, 3, 5, 4): ('ident',),
-                                       (2, 1, 0, 5, 4, 3): ('ident',),
-                                       (1, 0, 2, 4, 3, 5): ('ident',)})
+        t3x_sym = ncpd_symmetrize(t3x, {(1, 2, 0, 4, 5, 3): ('ident',),
+                                        (2, 0, 1, 5, 3, 4): ('ident',),
+                                        (0, 2, 1, 3, 5, 4): ('ident',),
+                                        (2, 1, 0, 5, 4, 3): ('ident',),
+                                        (1, 0, 2, 4, 3, 5): ('ident',)})
 
         return _rccsdt_mul_ri_calc_residuals(
             h,
             Tensors(
                 t1=a.t1,
                 t2=a.t2,
-                t3=cpd_rebuild(t3x_sym)
+                t3=ncpd_rebuild(t3x_sym)
             ))
 
         # return _rccsdt_ncpd_t2f_ls_t_calc_residuals(h, a)
@@ -716,26 +748,43 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
         r3_d = - r3u * cc_denom(h.f, 6, 'dir', 'full')
 
         # symmetrize inital T3
-        t3x_sym = cpd_symmetrize(t3x, {(1, 2, 0, 4, 5, 3): ('ident',),
-                                       (2, 0, 1, 5, 3, 4): ('ident',),
-                                       (0, 2, 1, 3, 5, 4): ('ident',),
-                                       (2, 1, 0, 5, 4, 3): ('ident',),
-                                       (1, 0, 2, 4, 3, 5): ('ident',)})
+        t3x_sym = ncpd_symmetrize(t3x, {(1, 2, 0, 4, 5, 3): ('ident',),
+                                        (2, 0, 1, 5, 3, 4): ('ident',),
+                                        (0, 2, 1, 3, 5, 4): ('ident',),
+                                        (2, 1, 0, 5, 4, 3): ('ident',),
+                                        (1, 0, 2, 4, 3, 5): ('ident',)})
         # 0 1 2 4 3 5 permutation of t3
         t3x_sym_a = [t3x_sym[0], t3x_sym[1], t3x_sym[2], t3x_sym[3],
                      t3x_sym[5], t3x_sym[4], t3x_sym[6]]
+
+        # Build combinations of T for unitary residual
+        t3x_u = ncpd_symmetrize(
+            t3x_sym,
+            {(0, 1, 2, 4, 3, 5): ('neg',),
+             (0, 1, 2, 5, 4, 3): ('neg',),
+             (0, 1, 2, 3, 5, 4): ('neg',),
+             (0, 1, 2, 5, 3, 4): ('ident',),
+             (0, 1, 2, 4, 5, 3): ('ident',), },
+            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
+
+        t3x_au = ncpd_symmetrize(
+            t3x_sym_a,
+            {(0, 1, 2, 4, 3, 5): ('neg',),
+             (0, 1, 2, 5, 4, 3): ('neg',),
+             (0, 1, 2, 3, 5, 4): ('neg',),
+             (0, 1, 2, 5, 3, 4): ('ident',),
+             (0, 1, 2, 4, 5, 3): ('ident',), },
+            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
+
         t3 = [f for f in t3x]
         for idx in range(len(t3)):
             g = (als_contract_dense(t3, r3_d, idx,
                                     tensor_format='ncpd')
-                 + als_contract_cpd(t3, t3x_sym, idx,
+                 + als_contract_cpd(t3, t3x_u, idx,
                                     tensor_format='ncpd')
-                 - als_contract_cpd(t3, t3x_sym_a, idx,
+                 - als_contract_cpd(t3, t3x_au, idx,
                                     tensor_format='ncpd')
                  )
-            # have to add proper contributions of T for
-            # unit residuals with coefficients divided by 12
-            raise NotImplemented("WIP")
 
             s = als_pseudo_inverse(t3, t3, idx)
             f = np.dot(g, s)
@@ -825,23 +874,24 @@ def test_cc_t2f():  # pragma: nocover
                  'O': '3-21g', }
     mol.build()
     rhf = scf.RHF(mol)
-    rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()
+    rhfri = scf.density_fit(scf.RHF(mol))
+    rhfri.scf()
 
-    from rcc.rccsdt import RCCSDT_UNIT
+    from tcc.rccsdt import RCCSDT, RCCSDT_UNIT
     from tcc.rccsdt_cpd import (RCCSDT_nCPD_LS_T,
                                 RCCSDT_nCPD_T_LS_T)
     from tcc.cc_solvers import (classic_solver, step_solver)
 
     cc1 = RCCSDT_UNIT(rhf)
-    cc2 = RCCSDT_nCPD_T_LS_T(rhf, rankt={'t3': 40})
-
-    converged2, energy2, amps2 = classic_solver(
-        cc2, conv_tol_energy=1e-7,
-        max_cycle=100)
+    cc2 = RCCSDT_nCPD_T_LS_T(rhfri, rankt={'t3': 40})
 
     converged1, energy1, amps1 = classic_solver(
-        cc1, conv_tol_energy=1e-7,
+        cc1, conv_tol_energy=1e-7, lam=3,
+        max_cycle=100)
+
+    converged2, energy2, amps2 = step_solver(
+        cc2, conv_tol_energy=1e-7, beta=1-1/5,
         max_cycle=100)
 
     print('E(full) - E(T2 CPD): {}'.format(energy2 - energy1))
