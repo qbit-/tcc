@@ -145,45 +145,11 @@ class RCCSDT(CC):
 
     def calculate_update(self, h, a):
         """
-        Calculate approximate gradient of T
+        Calculate new amplitudes from old ones
         """
         r = self.calc_residuals(h, a)
-        # Apply n_body symmetry
-        # This residual has to be modified
-        # to yeild unitary group residual.
-        #
-        # Now we build just a part of the unitary
-        # residual to reproduce So Hiratas solution
-        # r3s = (+ r.t3
-        #        - r.t3.transpose([0, 1, 2, 3, 5, 4])
-        #        + r.t3.transpose([0, 1, 2, 4, 5, 3]))
-        r['r3'] = (+ r.t3
-                   + r.t3.transpose([1, 2, 0, 4, 5, 3])
-                   + r.t3.transpose([2, 0, 1, 5, 3, 4])
-                   + r.t3.transpose([0, 2, 1, 3, 5, 4])
-                   + r.t3.transpose([2, 1, 0, 5, 4, 3])
-                   + r.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
-        # + 2 * r3s) / 12)
-
-        def multiply_by_inverse(x):
-            return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
-
-        # Solve
-        dt = r.map(multiply_by_inverse)
-
-        # Symmetrize T2
-        dt['t2'] = (+ dt.t2
-                    + dt.t2.transpose([1, 0, 3, 2])) / 2
-
-        # Symmetrize T3
-        dt['t3'] = (+ dt.t3
-                    + dt.t3.transpose([1, 2, 0, 4, 5, 3])
-                    + dt.t3.transpose([2, 0, 1, 5, 3, 4])
-                    + dt.t3.transpose([0, 2, 1, 3, 5, 4])
-                    + dt.t3.transpose([2, 1, 0, 5, 4, 3])
-                    + dt.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
-
-        return dt
+        g = self.update_rhs(h, a, r)
+        return self.solve_amps(h, a, g)
 
 
 class RCCSDT_UNIT(CC):
@@ -305,25 +271,8 @@ class RCCSDT_UNIT(CC):
         Calculate new amplitudes from old ones
         """
         r = self.calc_residuals(h, a)
-
-        def multiply_by_inverse(x):
-            return x * (cc_denom(h.f, x.ndim, 'dir', 'full'))
-
-        dt = r.map(multiply_by_inverse)
-
-        # Symmetrize T2
-        dt['t2'] = (+ dt.t2
-                    + dt.t2.transpose([1, 0, 3, 2])) / 2
-
-        # Symmetrize T3
-        dt['t3'] = (+ dt.t3
-                    + dt.t3.transpose([1, 2, 0, 4, 5, 3])
-                    + dt.t3.transpose([2, 0, 1, 5, 3, 4])
-                    + dt.t3.transpose([0, 2, 1, 3, 5, 4])
-                    + dt.t3.transpose([2, 1, 0, 5, 4, 3])
-                    + dt.t3.transpose([1, 0, 2, 4, 3, 5])) / 6
-
-        return dt
+        g = self.update_rhs(h, a, r)
+        return self.solve_amps(h, a, g)
 
 
 class RCCSDT_UNIT_ANTI(CC):
