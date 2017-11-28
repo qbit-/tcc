@@ -18,9 +18,7 @@ class RCCSDT(CC):
     vvvooo, vvoo, vo ordered amplitudes and Dirac ordered integrals
     Residuals are (alpha), (alpha beta), (alpha alpha beta) for
     t1, t2, t3 respectively. This code reproduces results of
-    So Hirata, but I suspect that it is not correct, and
-    yeilds only T3(alpha, alpha, beta) amplitude block
-    of UCCSDT instead of RCCSDT.
+    So Hirata
     """
     #  These are containers used by all  methods of this class
     # to pass numpy arrays
@@ -157,6 +155,9 @@ class RCCSDT_UNIT(CC):
     This class implements classic RCCSDT method with
     vvvooo, vvoo, vo ordered amplitudes and Dirac ordered integrals
     Residuals are defined with respect to unitary group generators
+    This code is most likely not correct, as the symmetric part of
+    the residual grows indefinitely in strong correlation
+    limit
     """
 
     def __init__(self, mf, frozen=[], mo_energy=None, mo_coeff=None,
@@ -214,7 +215,8 @@ class RCCSDT_UNIT(CC):
         Updates right hand side of the CC equations, commonly referred as G
         """
 
-        return _rccsdt_unit_calc_residuals(h, a)
+        r = _rccsdt_unit_calc_residuals(h, a)
+        return r
 
     def update_rhs(self, h, a, r):
         """
@@ -239,7 +241,6 @@ class RCCSDT_UNIT(CC):
         It is assumed that the order of fields in the RHS
         is consistent with the order in amplitudes
         """
-
         # Solve T2 (see RCCSD_UNIT)
         t2 = ((2 * g.t2 + g.t2.transpose([0, 1, 3, 2]))
               / (- 6) * cc_denom(h.f, 4, 'dir', 'full'))
@@ -253,12 +254,13 @@ class RCCSDT_UNIT(CC):
               * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full')))
 
         # Symmetrize
-        t3 = (+ t3
-              + t3.transpose([1, 2, 0, 4, 5, 3])
-              + t3.transpose([2, 0, 1, 5, 3, 4])
-              + t3.transpose([0, 2, 1, 3, 5, 4])
-              + t3.transpose([2, 1, 0, 5, 4, 3])
-              + t3.transpose([1, 0, 2, 4, 3, 5])) / 6
+        t3 = ((+ t3
+               + t3.transpose([1, 2, 0, 4, 5, 3])
+               + t3.transpose([2, 0, 1, 5, 3, 4])
+               + t3.transpose([0, 2, 1, 3, 5, 4])
+               + t3.transpose([2, 1, 0, 5, 4, 3])
+               + t3.transpose([1, 0, 2, 4, 3, 5])
+               ) / 6)
 
         return Tensors(
             t1=g.t1 * (- cc_denom(h.f, g.t1.ndim, 'dir', 'full')),
@@ -445,17 +447,9 @@ def test_cc_anti():   # pragma: nocover
 
 
 def test_cc_unit():   # pragma: nocover
-    from pyscf import gto
     from pyscf import scf
-    mol = gto.Mole()
-    mol.unit = 'Angstrom'
-    mol.atom = [
-        [8, (0., 0., 0.)],
-        [1, (0.,  -0.757, 0.587)],
-        [1, (0., 0.757, 0.587)]]
-    mol.basis = '3-21g'
-    mol.build()
-    rhf = scf.RHF(mol)
+    from tcc.hubbard import hubbard_from_scf
+    rhf = hubbard_from_scf(scf.RHF, 10, 10, 4, 'y')
     rhf.scf()
 
     from tcc.rccsdt import RCCSDT_UNIT
@@ -464,8 +458,8 @@ def test_cc_unit():   # pragma: nocover
 
     converged, energy, amps = classic_solver(
         cc, conv_tol_energy=1e-12, conv_tol_res=1e-12,
-        lam=3,
-        max_cycle=100)
+        lam=17,
+        max_cycle=200)
 
     h = cc.create_ham()
     res = cc.calc_residuals(h, amps)
@@ -488,28 +482,20 @@ def test_cc_unit():   # pragma: nocover
     print('dE: {}'.format(energy - -1.300682e-01))
 
 
-def test_cc_broken_sym():   # pragma: nocover
-    from pyscf import gto
+def test_cc():   # pragma: nocover
     from pyscf import scf
-    mol = gto.Mole()
-    mol.unit = 'Angstrom'
-    mol.atom = [
-        [8, (0., 0., 0.)],
-        [1, (0.,  -0.757, 0.587)],
-        [1, (0., 0.757, 0.587)]]
-    mol.basis = '3-21g'
-    mol.build()
-    rhf = scf.RHF(mol)
+    from tcc.hubbard import hubbard_from_scf
+    rhf = hubbard_from_scf(scf.RHF, 10, 10, 4, 'y')
     rhf.scf()
 
-    from tcc.rccsdt import RCCSDT
-    from tcc.cc_solvers import classic_solver
+    from tcc.rccsdt import RCCSDT_UNIT
+    from tcc.cc_solvers import residual_diis_solver, classic_solver
     cc = RCCSDT(rhf)
 
     converged, energy, amps = classic_solver(
         cc, conv_tol_energy=1e-12, conv_tol_res=1e-12,
-        lam=3,
-        max_cycle=100)
+        lam=17,
+        max_cycle=200)
 
     h = cc.create_ham()
     res = cc.calc_residuals(h, amps)
@@ -595,7 +581,7 @@ def test_compare_to_hirata():   # pragma: nocover
     mol.basis = {
         'H': gto.basis.parse(
             """
-            H         S   
+            H         S
                       3.42525091         0.15432897
                       0.62391373         0.53532814
                       0.16885540         0.44463454
@@ -603,15 +589,15 @@ def test_compare_to_hirata():   # pragma: nocover
         ),
         'O': gto.basis.parse(
             """
-            O         S   
+            O         S
                     130.70932000         0.15432897
                      23.80886100         0.53532814
                       6.44360830         0.44463454
-            O         S   
+            O         S
                       5.03315130        -0.09996723
                       1.16959610         0.39951283
                       0.38038900         0.70011547
-            O         P   
+            O         P
                       5.03315130         0.15591627
                       1.16959610         0.60768372
                       0.38038900         0.39195739
@@ -637,7 +623,7 @@ def test_compare_to_hirata():   # pragma: nocover
 
 if __name__ == '__main__':
     # test_cc_anti()
+    test_cc()
     test_cc_unit()
-    test_cc_broken_sym()
     # test_compare_to_aq()
     # test_compare_to_hirata()
