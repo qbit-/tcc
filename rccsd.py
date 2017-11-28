@@ -81,7 +81,12 @@ class RCCSD(CC):
         def multiply_by_inverse(x):
             return x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
 
-        return g.map(multiply_by_inverse)
+        t = g.map(multiply_by_inverse)
+
+        # Symmetrize
+        t['t2'] = 1 / 2 * (t.t2 + t.t2.transpose([1, 0, 3, 2]))
+
+        return t
 
     def update_rhs(self, h, a, r):
         """
@@ -92,11 +97,6 @@ class RCCSD(CC):
             return x / (cc_denom(h.f, x.ndim, 'dir', 'full'))
 
         g = r - a.map(divide_by_inverse)
-        # Apply symmetrization to the RHS, so we sstay always with
-        # tensors having an n_body symmetry and hence have always a
-        # contracting algorithm. See RCCSDT notes for more discussion.
-        # This should be done with a separate function
-        g['t2'] = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
 
         return g
 
@@ -105,7 +105,7 @@ class RCCSD(CC):
         Calculate dt
         """
         r = self.calc_residuals(h, a)
-        # Symmetrize
+        # Form symmetric residual. TODO: implement unit residual?
         r['t2'] = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
         def multiply_by_inverse(x):
@@ -118,7 +118,8 @@ class RCCSD(CC):
         Calculate new amplitudes in one shot
         """
         r = self.calc_residuals(h, a)
-        # Symmetrize
+
+        # Form symmetric residual
         r['t2'] = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
         def multiply_by_inverse(x):
@@ -127,7 +128,12 @@ class RCCSD(CC):
         def divide_by_inverse(x):
             return x / (cc_denom(h.f, x.ndim, 'dir', 'full'))
 
-        return (r - a.map(divide_by_inverse)).map(multiply_by_inverse)
+        t = (r - a.map(divide_by_inverse)).map(multiply_by_inverse)
+
+        # Symmetrize
+        t['t2'] = 1 / 2 * (t.t2 + t.t2.transpose([1, 0, 3, 2]))
+
+        return t
 
 
 class RCCSD_UNIT(RCCSD):
