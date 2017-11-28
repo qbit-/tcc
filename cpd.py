@@ -325,7 +325,7 @@ def ncpd_contract_free_ncpd(factors_top, factors_bottom,
         return s
 
 
-def cpd_symmetrize(factors, permdict, adjust_scale=True):
+def cpd_symmetrize(factors, permdict, adjust_scale=True, weights=None):
     """
     Produce a symmetric CPD decomposition.
     :param factors: CPD factors
@@ -333,7 +333,11 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
                      keys are tuples containing the permutation
                      values are tuples of any of('ident', 'neg', 'conj')
                      Identity permutation has to be excluded(added internally)
+    :param weights: list, default None
+                    weights of the symmetry elements.
+                    If set adjust scale will turn off
     :param adjust_scale: bool, default True
+
     If factors have to be scaled by the order of the permutation group
 
     Returns
@@ -352,11 +356,26 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
     >>> k = cpd_symmetrize(a, {(1, 0, 3, 2): ('ident', ),})
     >>> np.allclose(ts, cpd_rebuild(k))
     True
+    >>> ts = 2 * t1 - t1.transpose([1, 0, 3, 2])
+    >>> k = cpd_symmetrize(a, {(1, 0, 3, 2): ('neg', ),}, weights=[2, 1])
+    >>> np.allclose(ts, cpd_rebuild(k))
+    True
+
     """
 
+    nsym = len(permdict) + 1
+    nfactors = len(factors)
+
+    if weights is not None:
+        if len(weights) != nsym:
+            raise ValueError('len(weights) != len(permdict)+1')
+        weights = [pow(w, 1 / nfactors) for w in weights]
+        adjust_scale = False
+    else:
+        weights = [1 for ii in range(len(factors))]
+
     if adjust_scale:
-        nsym = len(permdict) + 1
-        scaling_factor = pow(1 / nsym, 1 / len(factors))
+        scaling_factor = pow(1 / nsym, 1 / nfactors)
     else:
         scaling_factor = 1
 
@@ -370,14 +389,18 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
 
     def conj(x):
         return np.conj(x)
+
+    def make_scaler(weight):
+        return lambda x: x * weight
+
     from functools import reduce
 
     n_factors = len(factors)
 
     new_factors = []
     for idx, factor in enumerate(factors):
-        new_factor = factor * scaling_factor
-        for perm, operations in permdict.items():
+        new_factor = factor * scaling_factor * weights[0]
+        for (perm, operations), weight in zip(permdict.items(), weights[1:]):
             transforms = []
             for operation in operations:
                 if operation == 'ident':
@@ -393,6 +416,8 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
                     raise ValueError(
                         'Unknown operation: {}'.format(
                             operation))
+            transforms.append(make_scaler(weight))
+
             new_factor = np.hstack(
                 (new_factor,
                  scaling_factor *
@@ -402,7 +427,7 @@ def cpd_symmetrize(factors, permdict, adjust_scale=True):
     return new_factors
 
 
-def ncpd_symmetrize(norm_factors, permdict):
+def ncpd_symmetrize(norm_factors, permdict, weights=None):
     """
     Produce a symmetric nCPD decomposition.
     :param norm_factors: norm and normalized CPD factors
@@ -410,6 +435,9 @@ def ncpd_symmetrize(norm_factors, permdict):
                      keys are tuples containing the permutation
                      values are tuples of any of('ident', 'neg', 'conj')
                      Identity permutation has to be excluded(added internally)
+    :param weights: list, default None
+                    weights of the symmetry elements.
+
     Returns
     -------
     symm_norm_factos: ndarray list, symmetrized nCPD factors
@@ -420,16 +448,28 @@ def ncpd_symmetrize(norm_factors, permdict):
     >>> k = ncpd_symmetrize(a, {(1, 0, 2): ('ident', )})
     >>> np.allclose(ts, ncpd_rebuild(k))
     True
+    >>> ts = (2 * t1 - 3 * t1.transpose([1, 0, 2]))
+    >>> k = ncpd_symmetrize(a, {(1, 0, 2): ('neg', )}, [2, 3])
+    >>> np.allclose(ts, ncpd_rebuild(k))
+    True
     """
 
     lam = norm_factors[0]
     factors = norm_factors[1:]
 
     nsym = len(permdict) + 1
-    scaling_factor = 1 / nsym
+    if weights is not None:
+        if len(weights) != nsym:
+            raise ValueError('len(weights) != len(permdict)+1')
+        scaling_factor = 1
+    else:
+        weights = [1 for ii in range(nsym)]
+        scaling_factor = 1 / nsym
 
-    new_factors = cpd_symmetrize(factors, permdict, adjust_scale=False)
-    new_lam = scaling_factor * np.hstack((lam, ) * nsym)
+    new_factors = cpd_symmetrize(factors, permdict, adjust_scale=False,
+                                 weights=None)
+    new_lam = scaling_factor * np.hstack(
+        (lam * weight for weight in weights))
 
     return [new_lam, ] + new_factors
 
@@ -792,34 +832,48 @@ def _demonstration_symmetry_rank():  # pragma: nocover
 
     2. There is no difference between decomposing full tensor
     or its CPD decomposition, although there should be
-    a large gain in speed for decomposed tensors. 
+    a large gain in speed for decomposed tensors.
 
     3. Symmetrized factors, which produce symmetrized tensor
-    exactly, preserve all their weights during nCPD ALS.
+    exactly, preserve all their weights during nCPD ALS if
+    used as an inital guess. This means that ALS procedure
+    does not break symmetry.
     However, a random initial guess can have different weights
-    and yield an exact decomposition. This shows that the form
-    of CPD may not be unique if factors are no independent, as is
+    and yield an exact decomposition. This also shows that the form
+    of CPD may not be unique if factors are not independent, as is
     in the case of symmetrized factors. Otherwise CPD is unique.
 
     4. The minimal rank of the symmetrized tensor may be smaller than
-    the rank of its symmetrized CPD. For example, a symmetrized
+    the rank of its CPD done with symmetrized factors as an inital guess.
+    For example, a symmetrized
     CPD can be rank 6 and yield the symmetrized tensor exactly, but
     there may exist an exact CPD of rank 4 of the same tensor.
     """
+    # Initialize unsymmetric cpd, unsymmetric tensor and symmetric tensor
     a = cpd_initialize([3, 3, 4], 3)
     t1 = cpd_rebuild(a)
     ts = 1 / 2 * (t1 - t1.transpose([1, 0, 2]))
+    # Symmetrize cpd
     k = cpd_symmetrize(a, {(1, 0, 2): ('neg', )})
+    # Check symmetrized CPD yeilds symmetrized tensor
     z0 = ts - cpd_rebuild(k)
+    # Initialize unsymmetric ncpd and its symmetrized version
     an = cpd_normalize(a, sort=True, merge_lam=True)
     kn = cpd_normalize(k, sort=True, merge_lam=True)
+    # Check symmetrized ncpd yeilds symmetric tensor
     z1 = ts - ncpd_rebuild(kn)
+    # Calculate cpd of the same tensor in dense and CPD forms
+    # with original unsymmetric factors as inital guess 
     n = als_cpd(an, kn, max_cycle=10000, tensor_format='ncpd')
     m = als_dense(an, ts, max_cycle=10000, tensor_format='ncpd')
+    # Check that the rank of symmetrized tensor may be bigger
     z2 = ts - ncpd_rebuild(n)
     z3 = ts - ncpd_rebuild(m)
+    # Check that ALS preserves weights
     l = als_dense(kn, ts, max_cycle=10000, tensor_format='ncpd')
     z4 = ts - ncpd_rebuild(l)
+    # Check that there may exist an unsymmetric tensor with smaller
+    # rank which decomposes symmetric tensor
     kp = ncpd_initialize([3, 3, 4], 5)
     o = als_dense(kp, ts, max_cycle=10000, tensor_format='ncpd')
     z5 = ts - ncpd_rebuild(o)

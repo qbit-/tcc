@@ -81,11 +81,6 @@ class RCCSD(CC):
             return x / (cc_denom(h.f, x.ndim, 'dir', 'full'))
 
         g = r - a.map(divide_by_inverse)
-        # Apply symmetrization to the RHS, so we sstay always with
-        # tensors having an n_body symmetry and hence have always a
-        # contracting algorithm. See RCCSDT notes for more discussion.
-        # This should be done with a separate function
-        # g['t2'] = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
 
         return g
 
@@ -98,7 +93,13 @@ class RCCSD(CC):
         def multiply_by_inverse(x):
             return x * (- cc_denom(h.f, x.ndim, 'dir', 'full'))
 
-        return g.map(multiply_by_inverse)
+        t = g.map(multiply_by_inverse)
+        # Apply symmetrization to amplitudes, so we stay always with
+        # tensors having an n_body symmetry and hence have always a
+        # contracting algorithm. See RCCSDT notes for more discussion.
+        # This should be done with a separate function
+        # t['t2'] = 1 / 2 * (t.t2 + t.t2.transpose([1, 0, 3, 2]))
+        return t
 
     def calculate_gradient(self, h, a):
         """
@@ -517,11 +518,10 @@ def test_show_cc_divergence():   # pragma: nocover
     from matplotlib import pyplot as plt
     fig, ax = plt.subplots()
     ax.semilogy(np.abs(cc._dEs))
-    ax.semilogy(cc._dnorms)
+    ax.semilogy(np.abs(cc._dnorms) + 1e-14)
     plt.xlabel('Number of iterations')
-    plt.ylabel('log($x$)')
     plt.ylim(None, 8)
-    plt.legend(['$|dE|$', '$|{}^2 T - {}^2 T_{symmetric}|$'])
+    plt.legend(['$|dE|$', '$|{}^2 T - {}^2 T_{symmetric}|$ + 1e-14'])
     plt.title(
         'Unstable RCCSD algorithm on 1D Hubbard, 10 sites, U = 3, PBC')
     fig.savefig('classic_cc_divergence.eps')
