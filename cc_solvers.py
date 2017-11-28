@@ -115,7 +115,7 @@ def residual_diis_solver(cc, amps=None, max_cycle=50,
 
 
 def classic_solver(cc, amps=None, max_cycle=50,
-                   conv_tol_energy=1e-6, conv_tol_res=1e-5, lam=1,
+                   conv_tol_energy=1e-8, conv_tol_res=1e-7, lam=1,
                    max_memory=None, verbose=logger.INFO):
     """
     Carry on a CC calculation
@@ -393,7 +393,7 @@ def lagrangian_solver(cc, amps=None, method='L-BFGS-B',
 
 
 def step_solver(cc, amps=None, max_cycle=50,
-                conv_tol_energy=1e-6, conv_tol_res=1e-5,
+                conv_tol_energy=1e-8, conv_tol_res=1e-7,
                 div_tol_energy=1e20,
                 use_momentum=True, beta=0.0,
                 max_memory=None, verbose=logger.INFO):
@@ -490,7 +490,7 @@ def step_solver(cc, amps=None, max_cycle=50,
 
 
 def gradient_solver(cc, amps=None, max_cycle=50,
-                    conv_tol_energy=1e-6, conv_tol_res=1e-5,
+                    conv_tol_energy=1e-8, conv_tol_res=1e-7,
                     div_tol_energy=1e20, alpha=1,
                     use_optimizer='momentum', optimizer_kwargs={},
                     max_memory=None, verbose=logger.INFO):
@@ -587,8 +587,8 @@ def gradient_solver(cc, amps=None, max_cycle=50,
 
 
 def update_diis_solver(cc, amps=None, max_cycle=50,
-                       conv_tol_energy=1e-6,
-                       conv_tol_res=1e-5,
+                       conv_tol_energy=1e-8,
+                       conv_tol_res=1e-7,
                        beta=0, ndiis=5,
                        diis_energy_tol=1e-4,
                        max_memory=None,
