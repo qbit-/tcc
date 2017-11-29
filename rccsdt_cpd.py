@@ -16,7 +16,7 @@ from tcc._rccsdt_cpd import (_rccsdt_cpd_ls_t_calculate_energy,
 from tcc._rccsdt_cpd import (_rccsdt_ncpd_ls_t_calculate_energy,
                              _rccsdt_ncpd_ls_t_calc_residuals)
 
-from tcc._rccsdt_mul import (_rccsdt_mul_ri_calc_residuals)
+from tcc._rccsdt_ri import (_rccsdt_ri_calc_residuals)
 
 from tcc._rccsdt_cpd import (_rccsdt_ncpd_t2f_ls_t_calculate_energy,
                              _rccsdt_ncpd_t2f_ls_t_calc_residuals)
@@ -124,7 +124,7 @@ class RCCSDT_CPD_LS_T(CC):
                                        (1, 0, 2, 4, 3, 5): ('ident',)})
 
         # return _rccsdt_cpd_ls_t_calc_residuals(h, a)
-        return _rccsdt_mul_ri_calc_residuals(
+        return _rccsdt_ri_calc_residuals(
             h,
             Tensors(t1=a.t1,
                     t2=cpd_rebuild(t2x_sym),
@@ -155,20 +155,18 @@ class RCCSDT_CPD_LS_T(CC):
         is consistent with the order in amplitudes
         """
 
-        # We reproduce here full unit residuals - see RCCSDT code
-        g3s = (+ g.t3
-               - g.t3.transpose([0, 1, 2, 3, 5, 4])
-               + g.t3.transpose([0, 1, 2, 4, 5, 3]))
-        g3u = (+ g.t3
-               + g.t3.transpose([1, 2, 0, 4, 5, 3])
-               + g.t3.transpose([2, 0, 1, 5, 3, 4])
-               + g.t3.transpose([0, 2, 1, 3, 5, 4])
-               + g.t3.transpose([2, 1, 0, 5, 4, 3])
-               + g.t3.transpose([1, 0, 2, 4, 3, 5])
-               + 2 * g3s) / 12
+        # We reproduce here broken symmetry RCCSDT - see code there
+        # Symmetrize RHS
+        g3 = (+ g.t3
+              + g.t3.transpose([1, 2, 0, 4, 5, 3])
+              + g.t3.transpose([2, 0, 1, 5, 3, 4])
+              + g.t3.transpose([0, 2, 1, 3, 5, 4])
+              + g.t3.transpose([2, 1, 0, 5, 4, 3])
+              + g.t3.transpose([1, 0, 2, 4, 3, 5])
+              ) / 6
 
         # Solve T3
-        t3 = g3u * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
+        t3 = g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
 
         # Symmetrize
         t3 = (+ t3
@@ -178,8 +176,12 @@ class RCCSDT_CPD_LS_T(CC):
               + t3.transpose([2, 1, 0, 5, 4, 3])
               + t3.transpose([1, 0, 2, 4, 3, 5])) / 6
 
+        # Symmetrize T2 RHS
+        g2 = (+ g.t2
+              + g.t2.transpose([1, 0, 3, 2])) / 2
+
         # Solve T2
-        t2 = g.t2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
+        t2 = g2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
 
         # Symmetrize
         t2 = 1 / 2 * (t2 + t2.transpose([1, 0, 3, 2]))
@@ -228,8 +230,8 @@ class RCCSDT_CPD_LS_T(CC):
         t1 = a.t1 - r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
 
         # Build symmetric T2 residual
-        # TODO: implement unit residual for T2?
         r2 = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
+
         # Solve
         r2_d = - r2 * cc_denom(h.f, 4, 'dir', 'full')
 
@@ -246,20 +248,17 @@ class RCCSDT_CPD_LS_T(CC):
             f = np.dot(g, s)
             t2[idx] = f
 
-        # Build unit T3 residual
-        r3s = (+ r.t3
-               - r.t3.transpose([0, 1, 2, 3, 5, 4])
-               + r.t3.transpose([0, 1, 2, 4, 5, 3]))
-        r3u = ((+ r.t3
-                + r.t3.transpose([1, 2, 0, 4, 5, 3])
-                + r.t3.transpose([2, 0, 1, 5, 3, 4])
-                + r.t3.transpose([0, 2, 1, 3, 5, 4])
-                + r.t3.transpose([2, 1, 0, 5, 4, 3])
-                + r.t3.transpose([1, 0, 2, 4, 3, 5])
-                + 2 * r3s) / 12)
+        # Build symmetric T3 residual
+        r3 = ((+ r.t3
+               + r.t3.transpose([1, 2, 0, 4, 5, 3])
+               + r.t3.transpose([2, 0, 1, 5, 3, 4])
+               + r.t3.transpose([0, 2, 1, 3, 5, 4])
+               + r.t3.transpose([2, 1, 0, 5, 4, 3])
+               + r.t3.transpose([1, 0, 2, 4, 3, 5])
+               ) / 6)
 
         # Solve
-        r3_d = - r3u * cc_denom(h.f, 6, 'dir', 'full')
+        r3_d = - r3 * cc_denom(h.f, 6, 'dir', 'full')
 
         # symmetrize inital T3
         t3x_sym = cpd_symmetrize(t3x, {(1, 2, 0, 4, 5, 3): ('ident',),
@@ -272,32 +271,13 @@ class RCCSDT_CPD_LS_T(CC):
         t3x_sym_a = [t3x_sym[0], t3x_sym[1], t3x_sym[2],
                      t3x_sym[4], t3x_sym[3], t3x_sym[5]]
 
-        # Build combinations of T for unitary residual
-        t3x_u = cpd_symmetrize(
-            t3x_sym,
-            {(0, 1, 2, 4, 3, 5): ('neg',),
-             (0, 1, 2, 5, 4, 3): ('neg',),
-             (0, 1, 2, 3, 5, 4): ('neg',),
-             (0, 1, 2, 5, 3, 4): ('ident',),
-             (0, 1, 2, 4, 5, 3): ('ident',), },
-            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
-
-        t3x_au = cpd_symmetrize(
-            t3x_sym_a,
-            {(0, 1, 2, 4, 3, 5): ('neg',),
-             (0, 1, 2, 5, 4, 3): ('neg',),
-             (0, 1, 2, 3, 5, 4): ('neg',),
-             (0, 1, 2, 5, 3, 4): ('ident',),
-             (0, 1, 2, 4, 5, 3): ('ident',), },
-            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
-
         t3 = [f for f in t3x]
         for idx in range(len(t2)):
             g = (als_contract_dense(t3, r3_d, idx,
                                     tensor_format='cpd')
-                 + als_contract_cpd(t3, t3x_u, idx,
+                 + als_contract_cpd(t3, t3x_sym, idx,
                                     tensor_format='cpd')
-                 - als_contract_cpd(t3, t3x_au, idx,
+                 - als_contract_cpd(t3, t3x_sym_a, idx,
                                     tensor_format='cpd')
                  )
 
@@ -378,7 +358,7 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
                                         (1, 0, 2, 4, 3, 5): ('ident',)})
 
         # return _rccsdt_ncpd_ls_t_calc_residuals(h, a)
-        return _rccsdt_mul_ri_calc_residuals(
+        return _rccsdt_ri_calc_residuals(
             h,
             Tensors(t1=a.t1,
                     t2=ncpd_rebuild(t2x_sym),
@@ -411,20 +391,17 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
         is consistent with the order in amplitudes
         """
 
-        # We reproduce here full unit residuals - see RCCSDT code
-        g3s = (+ g.t3
-               - g.t3.transpose([0, 1, 2, 3, 5, 4])
-               + g.t3.transpose([0, 1, 2, 4, 5, 3]))
-        g3u = (+ g.t3
-               + g.t3.transpose([1, 2, 0, 4, 5, 3])
-               + g.t3.transpose([2, 0, 1, 5, 3, 4])
-               + g.t3.transpose([0, 2, 1, 3, 5, 4])
-               + g.t3.transpose([2, 1, 0, 5, 4, 3])
-               + g.t3.transpose([1, 0, 2, 4, 3, 5])
-               + 2 * g3s) / 12
+        # Symmetrize T3 RHS - see RCCSDT code
+        g3 = (+ g.t3
+              + g.t3.transpose([1, 2, 0, 4, 5, 3])
+              + g.t3.transpose([2, 0, 1, 5, 3, 4])
+              + g.t3.transpose([0, 2, 1, 3, 5, 4])
+              + g.t3.transpose([2, 1, 0, 5, 4, 3])
+              + g.t3.transpose([1, 0, 2, 4, 3, 5])
+              ) / 6
 
         # Solve T3
-        t3 = g3u * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
+        t3 = g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
 
         # Symmetrize
         t3 = (+ t3
@@ -434,8 +411,11 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
               + t3.transpose([2, 1, 0, 5, 4, 3])
               + t3.transpose([1, 0, 2, 4, 3, 5])) / 6
 
+        # Symmetrize T2 RHS
+        g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+
         # Solve T2
-        t2 = g.t2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
+        t2 = g2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
 
         # Symmetrize
         t2 = 1 / 2 * (t2 + t2.transpose([1, 0, 3, 2]))
@@ -485,7 +465,6 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
         t1 = a.t1 - r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
 
         # Build symmetric residual
-        # TODO: implement full unit residual for T2?
         r2 = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
         # Solve
@@ -504,20 +483,17 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
             f = np.dot(g, s)
             t2[idx] = f
 
-        # Build full unit residual
-        r3s = (+ r.t3
-               - r.t3.transpose([0, 1, 2, 3, 5, 4])
-               + r.t3.transpose([0, 1, 2, 4, 5, 3]))
-        r3u = ((+ r.t3
-                + r.t3.transpose([1, 2, 0, 4, 5, 3])
-                + r.t3.transpose([2, 0, 1, 5, 3, 4])
-                + r.t3.transpose([0, 2, 1, 3, 5, 4])
-                + r.t3.transpose([2, 1, 0, 5, 4, 3])
-                + r.t3.transpose([1, 0, 2, 4, 3, 5])
-                + 2 * r3s) / 12)
+        # Build symmetric residual
+        r3 = ((+ r.t3
+               + r.t3.transpose([1, 2, 0, 4, 5, 3])
+               + r.t3.transpose([2, 0, 1, 5, 3, 4])
+               + r.t3.transpose([0, 2, 1, 3, 5, 4])
+               + r.t3.transpose([2, 1, 0, 5, 4, 3])
+               + r.t3.transpose([1, 0, 2, 4, 3, 5])
+               ) / 6)
 
         # Solve
-        r3_d = - r3u * cc_denom(h.f, 6, 'dir', 'full')
+        r3_d = - r3 * cc_denom(h.f, 6, 'dir', 'full')
 
         # symmetrize initial t3
         t3x_sym = ncpd_symmetrize(t3x, {(1, 2, 0, 4, 5, 3): ('ident',),
@@ -529,32 +505,14 @@ class RCCSDT_nCPD_LS_T(RCCSDT_CPD_LS_T):
         # 0 1 2 4 3 5 permutation of t3
         t3x_sym_a = [t3x_sym[0], t3x_sym[1], t3x_sym[2], t3x_sym[3],
                      t3x_sym[5], t3x_sym[4], t3x_sym[6]]
-        # Build combinations of T for unitary residual
-        t3x_u = ncpd_symmetrize(
-            t3x_sym,
-            {(0, 1, 2, 4, 3, 5): ('neg',),
-             (0, 1, 2, 5, 4, 3): ('neg',),
-             (0, 1, 2, 3, 5, 4): ('neg',),
-             (0, 1, 2, 5, 3, 4): ('ident',),
-             (0, 1, 2, 4, 5, 3): ('ident',), },
-            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
-
-        t3x_au = ncpd_symmetrize(
-            t3x_sym_a,
-            {(0, 1, 2, 4, 3, 5): ('neg',),
-             (0, 1, 2, 5, 4, 3): ('neg',),
-             (0, 1, 2, 3, 5, 4): ('neg',),
-             (0, 1, 2, 5, 3, 4): ('ident',),
-             (0, 1, 2, 4, 5, 3): ('ident',), },
-            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
 
         t3 = [f for f in t3x]
         for idx in range(len(t3)):
             g = (als_contract_dense(t3, r3_d, idx,
                                     tensor_format='ncpd')
-                 + als_contract_cpd(t3, t3x_u, idx,
+                 + als_contract_cpd(t3, t3x_sym, idx,
                                     tensor_format='ncpd')
-                 - als_contract_cpd(t3, t3x_au, idx,
+                 - als_contract_cpd(t3, t3x_sym_a, idx,
                                     tensor_format='ncpd')
                  )
 
@@ -625,7 +583,7 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
                                         (2, 1, 0, 5, 4, 3): ('ident',),
                                         (1, 0, 2, 4, 3, 5): ('ident',)})
 
-        return _rccsdt_mul_ri_calc_residuals(
+        return _rccsdt_ri_calc_residuals(
             h,
             Tensors(
                 t1=a.t1,
@@ -659,26 +617,26 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
         is consistent with the order in amplitudes
         """
 
+        # Symmetrize T2 RHS
+        g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+
         # Solve T2
-        t2 = g.t2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
+        t2 = g2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
 
         # Symmetrize
         t2 = 1 / 2 * (t2 + t2.transpose([1, 0, 3, 2]))
 
-        # We reproduce here full unit residuals - see RCCSDT code
-        g3s = (+ g.t3
-               - g.t3.transpose([0, 1, 2, 3, 5, 4])
-               + g.t3.transpose([0, 1, 2, 4, 5, 3]))
-        g3u = (+ g.t3
-               + g.t3.transpose([1, 2, 0, 4, 5, 3])
-               + g.t3.transpose([2, 0, 1, 5, 3, 4])
-               + g.t3.transpose([0, 2, 1, 3, 5, 4])
-               + g.t3.transpose([2, 1, 0, 5, 4, 3])
-               + g.t3.transpose([1, 0, 2, 4, 3, 5])
-               + 2 * g3s) / 12
+        # Symmetrize T3 RHS
+        g3 = (+ g.t3
+              + g.t3.transpose([1, 2, 0, 4, 5, 3])
+              + g.t3.transpose([2, 0, 1, 5, 3, 4])
+              + g.t3.transpose([0, 2, 1, 3, 5, 4])
+              + g.t3.transpose([2, 1, 0, 5, 4, 3])
+              + g.t3.transpose([1, 0, 2, 4, 3, 5])
+              ) / 12
 
         # Solve T3
-        t3 = g3u * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
+        t3 = g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
 
         # Symmetrize
         t3 = (+ t3
@@ -725,27 +683,32 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
 
         t1 = a.t1 - r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
 
-        # Solve T2
-        r2_d = - r.t2 * cc_denom(h.f, 4, 'dir', 'full')
-        t2 = a.t2 + r2_d
+        # Symmetrize T2 residual
+        r2 = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
-        # Symmetrize
+        # Solve T2
+        r2_d = - r2 * cc_denom(h.f, 4, 'dir', 'full')
+
+        # Symmetrize T2
+        t2 = 1 / 2 * (a.t2 + a.t2.transpose([1, 0, 3, 2]))
+
+        # Solve for T2
+        t2 = t2 + r2_d
+
+        # Symmetrize solution
         t2 = 1 / 2 * (t2 + t2.transpose([1, 0, 3, 2]))
 
-        # Build full unit residual
-        r3s = (+ r.t3
-               - r.t3.transpose([0, 1, 2, 3, 5, 4])
-               + r.t3.transpose([0, 1, 2, 4, 5, 3]))
-        r3u = ((+ r.t3
-                + r.t3.transpose([1, 2, 0, 4, 5, 3])
-                + r.t3.transpose([2, 0, 1, 5, 3, 4])
-                + r.t3.transpose([0, 2, 1, 3, 5, 4])
-                + r.t3.transpose([2, 1, 0, 5, 4, 3])
-                + r.t3.transpose([1, 0, 2, 4, 3, 5])
-                + 2 * r3s) / 12)
+        # Build symmetric residual
+        r3 = ((+ r.t3
+               + r.t3.transpose([1, 2, 0, 4, 5, 3])
+               + r.t3.transpose([2, 0, 1, 5, 3, 4])
+               + r.t3.transpose([0, 2, 1, 3, 5, 4])
+               + r.t3.transpose([2, 1, 0, 5, 4, 3])
+               + r.t3.transpose([1, 0, 2, 4, 3, 5])
+               ) / 6)
 
         # Solve
-        r3_d = - r3u * cc_denom(h.f, 6, 'dir', 'full')
+        r3_d = - r3 * cc_denom(h.f, 6, 'dir', 'full')
 
         # symmetrize inital T3
         t3x_sym = ncpd_symmetrize(t3x, {(1, 2, 0, 4, 5, 3): ('ident',),
@@ -757,32 +720,13 @@ class RCCSDT_nCPD_T_LS_T(RCCSDT_nCPD_LS_T):
         t3x_sym_a = [t3x_sym[0], t3x_sym[1], t3x_sym[2], t3x_sym[3],
                      t3x_sym[5], t3x_sym[4], t3x_sym[6]]
 
-        # Build combinations of T for unitary residual
-        t3x_u = ncpd_symmetrize(
-            t3x_sym,
-            {(0, 1, 2, 4, 3, 5): ('neg',),
-             (0, 1, 2, 5, 4, 3): ('neg',),
-             (0, 1, 2, 3, 5, 4): ('neg',),
-             (0, 1, 2, 5, 3, 4): ('ident',),
-             (0, 1, 2, 4, 5, 3): ('ident',), },
-            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
-
-        t3x_au = ncpd_symmetrize(
-            t3x_sym_a,
-            {(0, 1, 2, 4, 3, 5): ('neg',),
-             (0, 1, 2, 5, 4, 3): ('neg',),
-             (0, 1, 2, 3, 5, 4): ('neg',),
-             (0, 1, 2, 5, 3, 4): ('ident',),
-             (0, 1, 2, 4, 5, 3): ('ident',), },
-            weights=[2/3, 1/3, 1/3, 1/3, 1/6, 1/6])
-
         t3 = [f for f in t3x]
         for idx in range(len(t3)):
             g = (als_contract_dense(t3, r3_d, idx,
                                     tensor_format='ncpd')
-                 + als_contract_cpd(t3, t3x_u, idx,
+                 + als_contract_cpd(t3, t3x_sym, idx,
                                     tensor_format='ncpd')
-                 - als_contract_cpd(t3, t3x_au, idx,
+                 - als_contract_cpd(t3, t3x_sym_a, idx,
                                     tensor_format='ncpd')
                  )
 
@@ -831,11 +775,11 @@ def test_cc():   # pragma: nocover
     rhf = scf.density_fit(scf.RHF(mol))
     rhf.scf()
 
-    from tcc.rccsdt_mul import RCCSDT_MUL_RI
+    from tcc.rccsdt_ri import RCCSDT_RI
     from tcc.rccsdt_cpd import RCCSDT_nCPD_LS_T
     from tcc.rccsdt_cpd import RCCSDT_CPD_LS_T
     from tcc.cc_solvers import (classic_solver, step_solver)
-    cc1 = RCCSDT_MUL_RI(rhf)
+    cc1 = RCCSDT_RI(rhf)
     cc2 = RCCSDT_nCPD_LS_T(rhf, rankt={'t2': 20, 't3': 40})
     cc3 = RCCSDT_CPD_LS_T(rhf, rankt={'t2': 20, 't3': 40})
 
@@ -891,11 +835,12 @@ def test_cc_t2f():  # pragma: nocover
         max_cycle=100)
 
     converged2, energy2, amps2 = step_solver(
-        cc2, conv_tol_energy=1e-7, beta=1-1/5,
+        cc2, conv_tol_energy=1e-7, beta=1 - 1 / 5,
         max_cycle=100)
 
     print('E(full) - E(T2 CPD): {}'.format(energy2 - energy1))
 
 
 if __name__ == '__main__':
+    test_cc()
     test_cc_t2f()
