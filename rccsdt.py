@@ -98,6 +98,15 @@ class RCCSDT(CC):
         is consistent with the order in amplitudes
         """
 
+        # Form symmetric RHS for T2
+        g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+
+        # Solve T2
+        t2 = g2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
+
+        # Symmetrize
+        t2 = (t2 + t2.transpose([1, 0, 3, 2])) / 2
+
         # This version coincides with So
         # Hirata. To do full unitary residuals uncomment blocks
         # %1 and %2 below
@@ -116,12 +125,6 @@ class RCCSDT(CC):
                + g.t3.transpose([1, 0, 2, 4, 3, 5])
                # + 2 * g3s) / 12   # %2
                ) / 6)
-
-        # Solve T2
-        t2 = g.t2 * (- cc_denom(h.f, g.t2.ndim, 'dir', 'full'))
-
-        # Symmetrize
-        t2 = (t2 + t2.transpose([1, 0, 3, 2])) / 2
 
         # Solve T3
         t3 = g3 * (- cc_denom(h.f, g.t3.ndim, 'dir', 'full'))
@@ -459,7 +462,7 @@ def test_cc_unit():   # pragma: nocover
     converged, energy, amps = classic_solver(
         cc, conv_tol_energy=1e-12, conv_tol_res=1e-12,
         lam=17,
-        max_cycle=200)
+        max_cycle=1000)
 
     h = cc.create_ham()
     res = cc.calc_residuals(h, amps)
@@ -495,7 +498,7 @@ def test_cc():   # pragma: nocover
     converged, energy, amps = classic_solver(
         cc, conv_tol_energy=1e-12, conv_tol_res=1e-12,
         lam=17,
-        max_cycle=200)
+        max_cycle=1000)
 
     h = cc.create_ham()
     res = cc.calc_residuals(h, amps)
@@ -623,7 +626,7 @@ def test_compare_to_hirata():   # pragma: nocover
 
 if __name__ == '__main__':
     # test_cc_anti()
-    test_cc()
     test_cc_unit()
+    test_cc()
     # test_compare_to_aq()
     # test_compare_to_hirata()
