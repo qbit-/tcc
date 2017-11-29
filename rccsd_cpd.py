@@ -118,7 +118,15 @@ class RCCSD_CPD_LS_T_UNIT(CC):
         """
         Calculates CC residuals for CC equations
         """
-        return _rccsd_cpd_ls_t_calc_residuals(h, a)
+        # Symmetrize T2 before feeding into res
+        names = ['x1', 'x2', 'x3', 'x4']
+        xs_sym = cpd_symmetrize(
+            [a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
+            {(1, 0, 3, 2): ('ident',)})
+
+        return _rccsd_cpd_ls_t_calc_residuals(
+            h, Tensors(t1=a.t1,
+                       t2=Tensors(zip(names, xs_sym))))
 
     def solve_amps(self, h, a, g):
         """
@@ -128,13 +136,18 @@ class RCCSD_CPD_LS_T_UNIT(CC):
         """
         t1 = g.t1 / (- 2) * cc_denom(h.f, 2, 'dir', 'full')
 
-        t2_full = (2 * g.t2 + g.t2.transpose([0, 1, 3, 2])
-                   ) / (- 6) * cc_denom(h.f, 4, 'dir', 'full')
+        # Build unit RHS
+        g2 = (2 * g.t2 + g.t2.transpose([0, 1, 3, 2])
+              ) / 6
 
+        # Symmetrize RHS
+        g2 = 1 / 2 * (g2 + g2.transpose([1, 0, 3, 2]))
+
+        # Solve
+        t2_full = g2 * (- cc_denom(h.f, 4, 'dir', 'full')
+                        )
         xs = als_dense([a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
                        t2_full, max_cycle=1)
-
-        # xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2) : ('ident',)})
 
         names = ['x1', 'x2', 'x3', 'x4']
         return Tensors(t1=t1, t2=Tensors(zip(names, xs)))
@@ -230,16 +243,19 @@ class RCCSD_nCPD_LS_T(CC):
         """
         Calculates CC residuals for CC equations
         """
-        # return _rccsd_ncpd_ls_t_unf_calc_residuals(h, a)
-        # residuals are calculated with full amps for speed
+
+        # Symmetrize T2 before feeding into res
+        xs_sym = ncpd_symmetrize(
+            [a.t2.xlam, a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
+            {(1, 0, 3, 2): ('ident',)})
 
         amps = Tensors(
             t1=a.t1,
-            t2=ncpd_rebuild([a.t2.xlam,
-                             a.t2.x1, a.t2.x2,
-                             a.t2.x3, a.t2.x4]))
+            t2=ncpd_rebuild(xs_sym))
 
+        # residuals are calculated with full amps for speed
         return _rccsd_ri_calc_residuals(h, amps)
+        # return _rccsd_ncpd_ls_t_unf_calc_residuals(h, a)
 
     def update_rhs(self, h, a, r):
         """
@@ -258,7 +274,11 @@ class RCCSD_nCPD_LS_T(CC):
         """
 
         t1 = g.t1 * (- cc_denom(h.f, 2, 'dir', 'full'))
-        t2_full = g.t2 * (- cc_denom(h.f, 4, 'dir', 'full'))
+
+        # Symmetrize T2 RHS
+        g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+
+        t2_full = g2 * (- cc_denom(h.f, 4, 'dir', 'full'))
 
         xs = als_dense([a.t2.xlam, a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
                        t2_full, max_cycle=1, tensor_format='ncpd')
@@ -279,27 +299,29 @@ class RCCSD_nCPD_LS_T(CC):
         """
 
         names_abij = ['xlam', 'x1', 'x2', 'x3', 'x4']
-        xs1 = [a.t2[key] for key in names_abij]
+        xs = [a.t2[key] for key in names_abij]
 
         # symmetrize t2 before feeding into res
-        xs_sym = ncpd_symmetrize(xs1, {(1, 0, 3, 2): ('ident',)})
+        xs_sym = ncpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
 
-        # Running residuals with symmetrized amplitudes is much slower,
-        # but convergence is more stable. Derive unsymm equations?
+        # Calculate residuals
         r = self.calc_residuals(
             h,
             Tensors(t1=a.t1, t2=Tensors(zip(names_abij, xs_sym))))
 
+        # Calculate T1
         t1 = a.t1 - r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
 
-        r2_d = - r.t2 * cc_denom(h.f, 4, 'dir', 'full')
+        # Symmetrize T2 residuals
+        r2 = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
-        t2 = [f for f in xs1]
+        # Solve
+        r2_d = - r2 * cc_denom(h.f, 4, 'dir', 'full')
+
+        t2 = [f for f in xs]
         for idx in range(len(t2)):
             g = (als_contract_dense(t2, r2_d, idx,
                                     tensor_format='ncpd')
-                 # here we can use unsymmetried amps as well,
-                 # giving lower energy and worse convergence
                  + als_contract_cpd(t2, xs_sym, idx,
                                     tensor_format='ncpd'))
             s = als_pseudo_inverse(t2, t2, idx)
@@ -408,16 +430,19 @@ class RCCSD_CPD_LS_T(CC):
         """
         Calculates CC residuals for CC equations
         """
-        # return _rccsd_cpd_ls_t_unf_calc_residuals(h, a)
-        # residuals are calculated with full amps for speed
+
+        # Symmetrize T2 before feeding into res
+        xs_sym = cpd_symmetrize(
+            [a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
+            {(1, 0, 3, 2): ('ident',)})
 
         amps = Tensors(
             t1=a.t1,
-            t2=cpd_rebuild([a.t2.xlam,
-                            a.t2.x1, a.t2.x2,
-                            a.t2.x3, a.t2.x4]))
+            t2=cpd_rebuild(xs_sym))
 
+        # residuals are calculated with full amps for speed
         return _rccsd_ri_calc_residuals(h, amps)
+        # return _rccsd_cpd_ls_t_unf_calc_residuals(h, a)
 
     def update_rhs(self, h, a, r):
         """
@@ -436,7 +461,12 @@ class RCCSD_CPD_LS_T(CC):
         """
 
         t1 = g.t1 * (- cc_denom(h.f, 2, 'dir', 'full'))
-        t2_full = g.t2 * (- cc_denom(h.f, 4, 'dir', 'full'))
+
+        # Symmetrize T2 HS
+        g2 = 1 / 2 * (g.t2 + g.t2.transpose([1, 0, 3, 2]))
+
+        # Solve T2
+        t2_full = g2 * (- cc_denom(h.f, 4, 'dir', 'full'))
 
         xs = als_dense([a.t2.x1, a.t2.x2, a.t2.x3, a.t2.x4],
                        t2_full, max_cycle=1, tensor_format='cpd')
@@ -454,27 +484,28 @@ class RCCSD_CPD_LS_T(CC):
         """
 
         names_abij = ['x1', 'x2', 'x3', 'x4']
-        xs1 = [a.t2[key] for key in names_abij]
+        xs = [a.t2[key] for key in names_abij]
 
         # symmetrize t2 before feeding into res
-        xs_sym = cpd_symmetrize(xs1, {(1, 0, 3, 2): ('ident',)})
+        xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
 
-        # Running residuals with symmetrized amplitudes is much slower,
-        # but convergence is more stable. Derive unsymm equations?
         r = self.calc_residuals(
             h,
             Tensors(t1=a.t1, t2=Tensors(zip(names_abij, xs_sym))))
 
+        # Solve T1
         t1 = a.t1 - r.t1 * (cc_denom(h.f, 2, 'dir', 'full'))
 
-        r2_d = - r.t2 * cc_denom(h.f, 4, 'dir', 'full')
+        # Symmetrize T2 residuals
+        r2 = 1 / 2 * (r.t2 + r.t2.transpose([1, 0, 3, 2]))
 
-        t2 = [f for f in xs1]
+        # Solve T2
+        r2_d = - r2 * cc_denom(h.f, 4, 'dir', 'full')
+
+        t2 = [f for f in xs]
         for idx in range(len(t2)):
             g = (als_contract_dense(t2, r2_d, idx,
                                     tensor_format='cpd')
-                 # here we can use unsymmetried amps as well,
-                 # giving lower energy and worse convergence
                  + als_contract_cpd(t2, xs_sym, idx,
                                     tensor_format='cpd'))
             s = als_pseudo_inverse(t2, t2, idx)
@@ -545,12 +576,12 @@ class RCCSD_CPD_LS_T_TRUE(RCCSD_CPD_LS_T):
         xs_sym = cpd_symmetrize(xs, {(1, 0, 3, 2): ('ident',)})
         a_sym = Tensors(t1=a.t1, t2=Tensors(zip(names_abij, xs_sym)))
 
-        # Running residuals with symmetrized amplitudes is much slower,
-        # but convergence is more stable. Derive unsymm equations?
+        # Calculate residuals
         r1 = _rccsd_cpd_ls_t_true_calc_r1(
             h,
             a_sym)
 
+        # Solve T1
         t1 = a.t1 - r1 * (cc_denom(h.f, 2, 'dir', 'full'))
 
         namesd_abij = ['d1', 'd2', 'd3', 'd4']
@@ -562,8 +593,6 @@ class RCCSD_CPD_LS_T_TRUE(RCCSD_CPD_LS_T):
 
         for idx, name in enumerate(sorted(a_sym.t2.keys())):
             g = (- self._calculate_r2d_projection(name, h, a_sym, new_a, d)
-                 # here we can use unsymmetried amps as well,
-                 # giving lower energy and worse convergence
                  + als_contract_cpd(new_a.t2.to_list(), a_sym.t2.to_list(),
                                     idx,
                                     tensor_format='cpd'))
@@ -602,7 +631,7 @@ def test_cc():   # pragma: nocover
         cc1, max_cycle=150)
 
     converged2, energy2, amps2 = classic_solver(
-        cc2, max_cycle=10)
+        cc2, max_cycle=150)
 
 
 def test_hubbard():   # pragma: nocover
@@ -794,7 +823,7 @@ def profile_cpd_true():
         [1, (0., -0.757, 0.587)],
         [1, (0., 0.757, 0.587)]]
 
-    mol.basis = '3-21g'
+    mol.basis = 'sto-3g'
     mol.build()
     rhf_ri = scf.density_fit(scf.RHF(mol))
     rhf_ri.scf()
@@ -817,3 +846,4 @@ def profile_cpd_true():
 
 if __name__ == '__main__':
     profile_cpd_true()
+    # test_cc()

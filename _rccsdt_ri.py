@@ -2,7 +2,7 @@ from numpy import einsum
 from tcc.tensors import Tensors
 
 
-def _rccsdt_mul_ri_calculate_energy(h, a):
+def _rccsdt_ri_calculate_energy(h, a):
     tau0 = (
         einsum("ai,sia->s", a.t1, h.l.pov)
     )
@@ -34,7 +34,7 @@ def _rccsdt_mul_ri_calculate_energy(h, a):
     return energy
 
 
-def _rccsdt_mul_ri_calc_residuals(h, a):
+def _rccsdt_ri_calc_residuals(h, a):
     tau0 = (
         einsum("sij,ska->ijka", h.l.poo, h.l.pov)
     )

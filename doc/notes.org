@@ -1,6 +1,6 @@
 * ALS of dense and decomposed tensors
   1. There is no difference between decomposing full tensor
-     or its defining CPD decomposition, although there should be a
+     or its defining CPD decomposition, although there should beOB a
      large gain in speed for decomposed tensors.
 
 * CPD of symmetric tensors
@@ -129,11 +129,12 @@ hence the idea of the method:
     trunc(exp(Z) \bar{H}2 exp(-Z)) does not work well
 * Triples
   As follows from the example code, residuals are never zero for
-  triples in RCCSDT. This is possibly caused by the overdetermined
+  triples in RCCSDT (UPDATE 28.11.2017: that may be not true).
+  This is possibly caused by the overdetermined
   equations for restricted triples.
   
   Two ways of solving RCCSDT were found to work, although it is still
-  not clear which one is right.
+  not clear which one is right (UPDATE 28.11.2017: they may be equivalent)
  
   Residuals in RCCSDT are:
   
@@ -200,12 +201,23 @@ hence the idea of the method:
   is lower then what a procedure with full RU residual yeilds, and it
   feels that full RU is more correct.
 
+  UPDATE 28.11.2017
+  As was found with RCCSD, residuals have to be symmetrized, and only
+  a symmetrized part of the residual is meaningful.
+
+  As RU is a linear combinations of permuted RO, then if RO is 
+  zero, it follows RU is also zero. I still have to see that 
+  symmetrized RU gives the same energy as symmetrized RO at convergence.
   
+  If we work with RO only it has to be symmetrized, as was found 
+  empirically. 
+
+
 * Residuals of triples
-  Residuals in RCCSDT are not zero. This is very much related to the
-  symmetry of the underlying tensors. Aparently, T3 equations are
-  overdetermined, and only a symmetric part of the residual makes
-  sense.
+  Residuals in RCCSDT are not zero (UPDATE 28.11.2017 this may be
+  not true). This is very much related to the
+  symmetry of the underlying tensors. Aparently,
+  only a symmetric part of the residual makes  sense.
 
   If we stick with totally antisymmetric T3, then the norm of final T3
   residual is not zero, but it's antisymmetric part is.  The energy,
@@ -213,7 +225,7 @@ hence the idea of the method:
   antisymmetric we forget about spin labels and treat all particles as
   spinless fermions in triple excitations.
 
-  Let us spreading this thought to the symmetry of T3 in RCCSDT, which
+  Let us spread this thought to the symmetry of T3 in RCCSDT, which
   has only n_body symmetry. It should be true that only an n-body
   symmetric part of the residual should matter. A residual is a
   derivative with respect to the amplitude, and if the amplitude is
@@ -225,12 +237,9 @@ hence the idea of the method:
   
   Lastly let us talk about two different kinds of RCCSDT ("opposite spin" and
   unit residual based, see the code).
-  The residual is not zero (even its symmetric part) in both cases. I suspect
+  The residual is not zero (even its symmetric part) in both cases.
+  (but is small). I suspect
   that the first version ("opposite spin") corresponds to UCCSDT, while 
   the unit residual based version is a correct RCCSDT. At convergence 
-  the residual is much less in the "opposite spin" version, but is still far 
-  from zero. Possibly this is true due to the fact that UCCSDT has more 
-  degrees of freedom (and we solve only for the (alpha alpha beta) amplitudes).
-  In GCCSDT (which includes all degrees of freedom),
-  the residual would be zero for all blocks as we have seen in the case of 
-  antisymmetric T3
+  the residual is much less in the "opposite spin" version, but is still not
+  quite zero.
